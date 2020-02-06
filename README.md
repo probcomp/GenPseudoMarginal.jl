@@ -65,6 +65,6 @@ output_addrs = select(:z)
 
 We then use our generative function:
 ```julia
-ais_trace = simulate(AISGF(), (
+ais_trace = Gen.simulate(AISGF(), (
     foo, (1.,), choicemap((:x, true)), args_seq, argdiffs, mh_fwd, mh_rev, output_addrs)
 ```
