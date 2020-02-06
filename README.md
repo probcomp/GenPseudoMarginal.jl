@@ -36,7 +36,7 @@ Finally, we run AIS:
 lml_estimate, = GenSMC.ais(foo, (1.,), choicemap((:x, true)), args_seq, argdiffs, mh_kernel)
 ```
 
-## Annealed importance sampling inference combinator
+## Annealed importance sampling as a generative function
 
 We can also wrap AIS inference as a generative function.
 This allows us to use it within models and proposal distributions.
@@ -68,3 +68,9 @@ We then use our generative function:
 ais_trace = Gen.simulate(AISGF(), (
     foo, (1.,), choicemap((:x, true)), args_seq, argdiffs, mh_fwd, mh_rev, output_addrs)
 ```
+
+Note that all the intermediate random choices made during annealing are treated as *non-addressable randomness*.
+
+We can then use `make_ais_mh_move` (currently undocumented) to do MCMC, where we use AIS as the basis of a proposal distribution.
+As the number of annealing steps increases, the proposal distribution approaches the conditional distribution on the selected choices (i.e. we approach Gibbs sampling):
+![Gibbs sampling with AIS](gibbs.png)

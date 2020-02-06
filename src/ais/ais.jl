@@ -156,7 +156,8 @@ function make_ais_mh_move(output_addrs, mh_fwd, mh_rev, args_seq, argdiffs)
     gf = AISGF()
 
     @gen function ais_proposal(trace)
-        @trace(gf(trace, output_addrs, mh_fwd, mh_rev, args_seq, argdiffs), :ais)
+        constraints = get_selected(get_choices(trace), ComplementSelection(output_addrs))
+        @trace(gf(get_gen_fn(trace), get_args(trace), constraints, args_seq, argdiffs, mh_fwd, mh_rev), :ais)
     end
 
     function involution(trace, fwd_choices, fwd_ret, fwd_args)
