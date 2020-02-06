@@ -33,7 +33,7 @@ mh_kernel = t -> mh(t, select(:z))[1]
 ```
 Finally, we run AIS:
 ```julia
-lml_estimate, = GenSMC.ais(foo, (1.,), choicemap((:x, true)), args_seq, argdiffs, mh_kernel)
+lml_estimate, = GenSMC.ais(foo, choicemap((:x, true)), args_seq, argdiffs, mh_kernel)
 ```
 
 ## Annealed importance sampling as a generative function
@@ -66,7 +66,7 @@ output_addrs = select(:z)
 We then use our generative function:
 ```julia
 ais_trace = Gen.simulate(AISGF(), (
-    foo, (1.,), choicemap((:x, true)), args_seq, argdiffs, mh_fwd, mh_rev, output_addrs)
+    foo, choicemap((:x, true)), args_seq, argdiffs, mh_fwd, mh_rev, output_addrs)
 ```
 
 Note that all the intermediate random choices made during annealing are treated as *non-addressable randomness*.

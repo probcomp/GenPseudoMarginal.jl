@@ -9,14 +9,13 @@ using Gen
     (lml_est, trace, weights) = ais(
         model::GenerativeFunction, constraints::ChoiceMap,
         args_seq::Vector{Tuple}, argdiffs::Tuple,
-        mh_kernel::Function)
+        mcmc_kernel::Function)
 
 Run annealed importance sampling, returning the log marginal likelihood estimate (`lml_est`).
 """
 function ais(
-        model::GenerativeFunction, args::Tuple, constraints::ChoiceMap,
-        args_seq::Vector{<:Tuple}, argdiffs::Tuple,
-        mh_kernel::Function)
+        model::GenerativeFunction, constraints::ChoiceMap,
+        args_seq::Vector{<:Tuple}, argdiffs::Tuple, mcmc_kernel::Function)
 
     # run forward AIS
     weights = Float64[]
@@ -24,20 +23,20 @@ function ais(
     trace, weight = generate(model, args_seq[1], constraints)
     lml_est += weight
     push!(weights, weight)
-    for intermediate_args in args_seq[2:end]
-        trace = mh_kernel(trace)
-        (trace, weight, _, _) = update(trace, intermediate_args, argdiffs, choicemap())
+    for intermediate_args in args_seq[2:end-1]
+        trace = mcmc_kernel(trace)
+        (trace, weight, _, _) = update(trace, intermediate_args, argdiffs, EmptyChoiceMap())
         lml_est += weight
         push!(weights, weight)
     end
-    trace = mh_kernel(trace)
+    trace = mcmc_kernel(trace)
     (trace, weight, _, _) = update(
-        trace, args, argdiffs, choicemap())
+        trace, args_seq[end], argdiffs, EmptyChoiceMap())
     lml_est += weight
     push!(weights, weight)
 
     # do mh at the very end
-    trace = mh_kernel(trace)
+    trace = mcmc_kernel(trace)
 
     (lml_est, trace, weights)
 end
@@ -51,7 +50,7 @@ end
 # (for doing inference conditioned on existing values in a trace)
 
 function combinator_reverse_ais(
-        model::GenerativeFunction, args::Tuple, combined_constraints::ChoiceMap,
+        model::GenerativeFunction, combined_constraints::ChoiceMap,
         args_seq::Vector, argdiffs::Tuple,
         mh_fwd::Function, mh_rev::Function,
         output_addrs::Selection)
@@ -60,7 +59,7 @@ function combinator_reverse_ais(
     # the fixed choices
     #fixed_addrs = ComplementSelection(output_addrs)
     #fixed_choices = get_selected(get_choices(model_trace), fixed_addrs)
-    (trace, should_be_score) = generate(model, args, combined_constraints)
+    (trace, should_be_score) = generate(model, args_seq[end], combined_constraints)
     init_score = get_score(trace)
     @assert isapprox(should_be_score, init_score) # check its deterministic
     ais_score = init_score
@@ -71,7 +70,7 @@ function combinator_reverse_ais(
     # run backward AIS
     lml_est = 0.
     weights = Float64[]
-    for model_args in reverse(args_seq)
+    for model_args in reverse(args_seq[1:end-1])
         (trace, weight, _, _) = update(trace, model_args, argdiffs, choicemap())
         if isnan(weight)
             error("NaN weight")
@@ -111,18 +110,15 @@ Gen.get_choices(trace::AISTrace) = trace.choices
 Gen.get_score(trace::AISTrace) = trace.score
 
 struct AISGF <: GenerativeFunction{Vector{Float64},AISTrace} end
+const ais_gf = AISGF()
 
 function Gen.simulate(gen_fn::AISGF, args::Tuple)
-    (model::GenerativeFunction, model_args::Tuple, model_constraints::ChoiceMap,
+    (model::GenerativeFunction, model_constraints::ChoiceMap,
     args_seq::Vector{<:Tuple}, argdiffs::Tuple,
     mh_fwd::Function, mh_rev::Function, output_addrs::Selection) = args
 
-    # everything except the output addrs
-    #fixed_addrs = ComplementSelection(output_addrs)
-    #constraints = get_selected(get_choices(model_trace), fixed_addrs)
-
     (lml_est, trace, weights) = ais(
-        model, model_args, model_constraints,
+        model, model_constraints,
         args_seq, argdiffs,
         mh_fwd) 
 
@@ -132,14 +128,14 @@ function Gen.simulate(gen_fn::AISGF, args::Tuple)
 end
 
 function Gen.generate(gen_fn::AISGF, args::Tuple, constraints::ChoiceMap)
-    (model::GenerativeFunction, model_args::Tuple, model_constraints::ChoiceMap,
+    (model::GenerativeFunction, model_constraints::ChoiceMap,
     args_seq::Vector{<:Tuple}, argdiffs::Tuple,
     mh_fwd::Function, mh_rev::Function, output_addrs::Selection) = args
 
     combined_choices = merge(model_constraints, constraints)
 
     (_, ais_score, weights) = combinator_reverse_ais(
-        model, model_args, combined_choices,
+        model, combined_choices,
         args_seq, argdiffs, 
         mh_fwd, mh_rev, output_addrs)
 
@@ -157,7 +153,7 @@ function make_ais_mh_move(output_addrs, mh_fwd, mh_rev, args_seq, argdiffs)
 
     @gen function ais_proposal(trace)
         constraints = get_selected(get_choices(trace), ComplementSelection(output_addrs))
-        @trace(gf(get_gen_fn(trace), get_args(trace), constraints, args_seq, argdiffs, mh_fwd, mh_rev), :ais)
+        @trace(gf(get_gen_fn(trace), constraints, args_seq, argdiffs, mh_fwd, mh_rev), :ais)
     end
 
     function involution(trace, fwd_choices, fwd_ret, fwd_args)
