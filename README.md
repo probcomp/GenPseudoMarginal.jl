@@ -73,4 +73,5 @@ Note that all the intermediate random choices made during annealing are treated 
 
 We can then use `make_ais_mh_move` (currently undocumented) to do MCMC, where we use AIS as the basis of a proposal distribution.
 As the number of annealing steps increases, the proposal distribution approaches the conditional distribution on the selected choices (i.e. we approach Gibbs sampling):
+
 ![Gibbs sampling with AIS](gibbs.png)
