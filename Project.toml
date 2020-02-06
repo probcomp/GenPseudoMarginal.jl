@@ -1,0 +1,10 @@
+name = "GenSMC"
+uuid = "c6827b6f-81f0-4b91-a46a-e1fcef814a84"
+authors = ["Marco Cusumano-Towner <imarcoam@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+Gen = "ea4f424c-a589-11e8-07c0-fd5c91b9da4a"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
