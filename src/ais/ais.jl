@@ -41,27 +41,17 @@ function ais(
     (lml_est, trace, weights)
 end
 
-
-
-######################################
-# AIS generative function combinator #
-######################################
-
-# (for doing inference conditioned on existing values in a trace)
-
-function combinator_reverse_ais(
-        model::GenerativeFunction, combined_constraints::ChoiceMap,
+function reverse_ais(
+        model::GenerativeFunction, constraints::ChoiceMap,
         args_seq::Vector, argdiffs::Tuple,
-        mh_fwd::Function, mh_rev::Function,
-        output_addrs::Selection)
+        mh_rev::Function, output_addrs::Selection; safe=true)
 
-    # construct final model trace from the output choices (constraints) and all
-    # the fixed choices
-    #fixed_addrs = ComplementSelection(output_addrs)
-    #fixed_choices = get_selected(get_choices(model_trace), fixed_addrs)
-    (trace, should_be_score) = generate(model, args_seq[end], combined_constraints)
+    # construct final model trace from the inferred choices and all the fixed choices
+    (trace, should_be_score) = generate(model, args_seq[end], constraints)
     init_score = get_score(trace)
-    @assert isapprox(should_be_score, init_score) # check its deterministic
+    if safe && !isapprox(should_be_score, init_score) # check it's deterministic
+        error("Some random choices may have been unconstrained")
+    end
     ais_score = init_score
 
     # do mh at the very beginning
@@ -71,10 +61,8 @@ function combinator_reverse_ais(
     lml_est = 0.
     weights = Float64[]
     for model_args in reverse(args_seq[1:end-1])
-        (trace, weight, _, _) = update(trace, model_args, argdiffs, choicemap())
-        if isnan(weight)
-            error("NaN weight")
-        end
+        (trace, weight, _, _) = update(trace, model_args, argdiffs, EmptyChoiceMap())
+        safe && isnan(weight) && error("NaN weight")
         ais_score += weight # we are adding because the weights are the reciprocal of the forward weight
         lml_est -= weight
         push!(weights, -weight)
@@ -94,6 +82,12 @@ function combinator_reverse_ais(
 
     (lml_est, ais_score, reverse(weights))
 end
+
+
+
+######################################
+# AIS generative function combinator #
+######################################
 
 struct AISTrace <: Gen.Trace
     gen_fn::GenerativeFunction
@@ -134,10 +128,10 @@ function Gen.generate(gen_fn::AISGF, args::Tuple, constraints::ChoiceMap)
 
     combined_choices = merge(model_constraints, constraints)
 
-    (_, ais_score, weights) = combinator_reverse_ais(
+    (_, ais_score, weights) = reverse_ais(
         model, combined_choices,
         args_seq, argdiffs, 
-        mh_fwd, mh_rev, output_addrs)
+        mh_rev, output_addrs)
 
     trace = AISTrace(gen_fn, args, ais_score, constraints, weights)
     (trace, ais_score)

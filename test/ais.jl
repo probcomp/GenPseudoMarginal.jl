@@ -21,7 +21,7 @@ function test_ais_mle()
 
     # ais()
     Random.seed!(1)
-    args_seq = map((theta) -> (theta,), range(0., stop=1., length=Int(1e5)))
+    args_seq = map((theta) -> (theta,), range(0., stop=1., length=Int(1e6)))
     argdiffs = (UnknownChange(),)
     mh_fwd, mh_rev = t -> mh(t, select(:z))[1], t -> mh(t, select(:z))[1]
     @time (actual, _, _) = ais(foo, choicemap((:x, true)), args_seq, argdiffs, mh_fwd)
