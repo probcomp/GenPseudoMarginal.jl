@@ -1,6 +1,6 @@
 module GenSMC
 
-include("ais/sir.jl")
-include("ais/ais.jl")
+include("sir.jl")
+include("ais.jl")
 
 end # module
