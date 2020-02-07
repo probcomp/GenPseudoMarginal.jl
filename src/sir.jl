@@ -1,8 +1,8 @@
 using Gen
 
-########################################
-# SIR (sampling importance resampling) #
-########################################
+########################################################
+# Selection-based SIR (sampling importance resampling) #
+########################################################
 
 function selection_sir(trace::Trace, selection::Selection, num_particles::Int)
     weights = Vector{Float64}(undef, num_particles)
@@ -38,9 +38,9 @@ end
 
 export selection_sir, conditional_selection_sir
 
-######################################
-# SIR generative function combinator #
-######################################
+######################################################
+# Selection-based SIR generative function combinator #
+######################################################
 
 struct SelectionSIRTrace <: Gen.Trace
     gen_fn::GenerativeFunction
@@ -84,24 +84,21 @@ export selection_sir_gf
 # MH move using SIR #
 #####################
 
-function selection_sir_mh_involution(trace, fwd_choices, fwd_ret, fwd_args)
-    (selection, _) = fwd_args
-    bwd_choices = get_selected(get_choices(trace), selection)
-    args = get_args(trace)
-    argdiffs = map((_) -> NoChange(), args)
-    new_trace, weight = update(trace, args, argdiffs, fwd_choices)
-    (new_trace, bwd_choices, weight + 0.)
-end
+# Q: How is this different from doing rejection sampling on these choices?
+# It is expensive like rejection sampling, but doesn't require a bound, and has
+# predictable running time, and can still accept even if you don't have an
+# exact sample.
 
-# behaves like rejection sampling, but doesn't require a bound
-# probably behaves similarly to sir particle gibbs (below), but less sticky
+# Q: How is this different than just doing selection MH in a loop?
+# A: It can be parallelized. Also, it can be composed with other proposals in a
+# single MH step.
 
-# Q: How is this better than just doing selection MH in a loop?
-# A: It can be parallelized.
+# Q: How is this different than particle Gibbs?
+# A: It is more compositional (it can be composed with other proposals in an MH
+# step). Also it may be less sticky.
 
-function selection_sir_mh(trace, selection::Selection, num_particles::Int; check_round_trip=false)
-    mh(trace, selection_sir_gf, (selection, num_particles), selection_sir_mh_involution;
-        check_round_trip=check_round_trip)
+function selection_sir_mh(trace, selection::Selection, num_particles::Int)
+    mh(trace, selection_sir_gf, (selection, num_particles))
 end
 
 export selection_sir_mh

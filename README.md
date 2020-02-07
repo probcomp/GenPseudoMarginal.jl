@@ -2,7 +2,31 @@
 
 Sequential Monte Carlo and annealed importance sampling inference library for Gen
 
-## Annealed importance sampling
+## API
+
+### Sampling importance resampling as a generative function
+
+(e.g. for use as part of an MH proposal)
+
+- `selection_sir_gf`
+
+### Selection-based MCMC moves using sampling importance resampling
+
+- `selection_sir_mh`
+
+- `sir_pgibbs`
+
+### Annealed importance sampling
+
+- `ais`
+
+- `ais_gf`
+
+### Selection-based MCMC moves using annealed importance sampling
+
+- `selection_ais_mh`
+
+## Tutorial on AIS
 
 Suppose we want to estimate marginal likelihoods in the model `foo` below:
 ```julia
@@ -75,3 +99,5 @@ We can then use `make_ais_mh_move` (currently undocumented) to do MCMC, where we
 As the number of annealing steps increases, the proposal distribution approaches the conditional distribution on the selected choices (i.e. we approach Gibbs sampling):
 
 ![Gibbs sampling with AIS](gibbs.png)
+
+
