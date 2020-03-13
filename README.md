@@ -1,6 +1,6 @@
 # GenSMC.jl
 
-Sequential Monte Carlo and annealed importance sampling inference library for Gen
+Advanced Sequential Monte Carlo and annealed importance sampling inference library for Gen
 
 ## API
 
