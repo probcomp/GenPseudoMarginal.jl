@@ -1,0 +1,89 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{bm}
+
+\newcommand{\reals}{\mathbb{R}}
+\newcommand{\naturals}{\mathbb{N}}
+\newcommand{\integers}{\mathbb{Z}}
+\newcommand{\normal}{\mathcal{N}}
+\newcommand{\unif}{\mathcal{U}}
+
+\newcommand{\z}{\mathbf{z}}
+\newcommand{\abold}{\mathbf{a}}
+\newcommand{\y}{\mathbf{y}}
+\newcommand\tdict[0]{\boldsymbol{\tau}}
+
+\title{Sequential Monte Carlo Pseudomarginal Generative Functions}
+\author{Marco Cusumano-Towner}
+
+\begin{document}
+\maketitle
+
+\section{A generative model}
+\noindent Consider a generative probabilistic model with joint distribution:
+\[
+p_{\theta}(\z_{1:T}, \y_{1:T}) = \left( p(z_1) \prod_{t=2}^T p(z_t | \z_{1:t-1})  \right) \left( \prod_{t=1}^T p(y_t | z_t) \right)
+\]
+for some parameter $\theta$.
+We will omit the parameter from the notation from here forward to simplify notation.
+
+\section{Particle filtering and conditional particle filtering}
+Consider a family of proposal distributions:
+\[
+    k_1(z_1) \mbox{ and } k_t(z_t; \z_{1:t-1}) \mbox{ for } t \in \{2, \ldots, T\}
+\]
+Consider a particle filter with $N$ particles that uses the above proposal distributions at each time step, with proportional resampling at every time step.
+Suppose after computing the weights at time step $T$, the particle filter resamples a single `distinguished' particle index proportionally to the weights.
+Notation for the particle filter:
+\begin{itemize}
+    \item $z_t^{(i)}$ is the state for particle $i$ at time $t$, for $i \in \{1, \ldots, N\}$ and $t \in \{1, \ldots, T\}$.
+    \item $a_{t-1}^{(i)} \in \{1, \ldots, N\}$ is the index of the parent of $z_t^{(i)}$ for $i \in \{1, \ldots, N\}$ and $t \in \{2, \ldots, T\}$.
+    \item $I_T$ is the index of the distinguished particle at time $T$.
+    \item $I_t := a_t^{(I_{t+1})}$ is the index of the distinguished particle at time $t$ for $t \in \{1, \ldots, T-1\}$.
+    \item $\z_{1:T}^* = (z_1^{(I_1)}, z_2^{(I_2)}, \ldots, z_T^{(I_T)})$ is the distinguished particle.
+    \item $w^{(i)}_1 := \displaystyle \frac{p(z_1, y_1)}{k_1(z_t)}$ is the initial weight, for $i \in \{1, \ldots, N\}$ and $t \in \{2, \ldots, T\}$.
+    \item $w^{(i)}_t := \displaystyle \frac{p(z_t, y_t | \z_{1:t-1})}{k_t(z_t; \z_{1:t-1})}$ is an incremental weight, for $i \in \{1, \ldots, N\}$ and $t \in \{2, \ldots, T\}$.
+    \item $\z_{1:T}^{1:N} := (z_t^{(i)})_{t \in \{1, \ldots, T\}}^{i \in 1 \ldots, N}$ is the set of all particles.
+    \item $\abold_{1:T-1}^{1:N} := (a^{(i)}_{t-1})_{t \in \{2, \ldots, T\}}^{i \in \{1, \ldots, N\}}$ is the set of all ancestor choices.
+\end{itemize}
+The particle filter algorithm samples from the following joint distribution:
+\begin{align*}
+    & q_{\mathrm{SMC}}(\z_{1:T}^{1:N}, \abold_{1:T-1}^{1:N}, I_T, \z_{1:T}^*)\\
+    &=  \left( \prod_{i=1}^N k_1(z_1^{(i)}) \right)
+        \left( \prod_{t=2}^T \prod_{i=1}^N \frac{w_{t-1}^{(a_{t-1}^{(i)})}}{\sum_{i=1}^N w_{t-1}^{(j)}} k_t(z_t^{(i)}; \z_{1:t-1}^{(a_{t-1}^{(i)})} )\right)
+        \left( \frac{w_T^{(I_T)}}{\sum_{j=1}^N w_T^{(j)}} \right)
+        \delta(\z_{1:T}^*,  (z_1^{(I_1)}, \ldots, z_T^{(I_T)}))
+\end{align*}
+where $\delta$ denotes the Kronecker delta function, and where we assume the $z_{t}^i$ are discrete.
+Given $\z_{1:T}^*$, the conditional particle filter algorithm samples from the following joint distribution:
+\begin{align*}
+    & r_{\mathrm{CSMC}}(\z_{1:T}^{1:N}, \abold_{1:T-1}^{1:N}, I_T; \z_{1:T}^*)\\
+    &=  \delta(\z_{1:T}^*,  (z_1^{(I_1)}, \ldots, z_T^{(I_T)}))
+        \left( \prod_{\substack{i=1\\i \ne I_1}}^N k_1(z_1^{(i)}) \right)
+        \left( \prod_{t=2}^T \prod_{\substack{i=1\\i \ne I_t}}^N \frac{w_{t-1}^{(a_{t-1}^{(i)})}}{\sum_{i=1}^N w_{t-1}^{(j)}} k_t(z_t^{(i)}; \z_{1:t-1}^{(a_{t-1}^{(i)})} )\right)
+\end{align*}
+
+\section{Constructing a generative function}
+We combine the generative model and the particle filter and conditional particle filter algorithms together to construct a generative function.
+Without loss of generality, let the arguments to the generative function be $x = (\theta, T)$ (recall that $\theta$ parametrizes the generative model joint distribution).
+For argument $(\theta, T)$ the generative function places all its probability mass on choice maps of the form:
+\[
+\tdict = \{1 \mapsto y_1, \ldots, T \mapsto y_T\}
+\]
+where the probability for such a choice map $\tdict$ in terms of the underlying generative model as:
+\[
+    p(\tdict; (\theta, T)) := \sum_{\z_{1:T}} p(\z_{1:T}, \y_{1:T})
+\]
+We now endow the generative function with encapsulated randomness of the form:
+\[
+\omega = (\z_{1:T}^{1:N}, \abold_{1:T-1}^{1:N}, \z_{1:T}^*)
+\]
+We define:
+\[
+\mathring{p}(\omega; (\theta, T), \tdict) := p(\z_{1:T}^* | y_{1:T}) r_{\mathrm{CSMC}}(\z_{1:T}^{1:N}, \abold_{1:T-1}^{1:N}, I_T; \z_{1:T}^*)
+\]
+
+\end{document}
