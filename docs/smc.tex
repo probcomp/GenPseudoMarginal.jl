@@ -5,6 +5,12 @@
 \usepackage{amsthm}
 \usepackage{bm}
 
+\usepackage[round]{natbib}
+\renewcommand{\bibname}{References}
+\renewcommand{\bibsection}{\subsubsection*{\bibname}}
+\renewcommand{\bibname}{References}
+\bibliographystyle{apalike}
+
 \newcommand{\reals}{\mathbb{R}}
 \newcommand{\naturals}{\mathbb{N}}
 \newcommand{\integers}{\mathbb{Z}}
@@ -68,6 +74,7 @@ Given $\z_{1:T}^*$, the conditional particle filter algorithm samples from the f
 
 \section{Constructing a generative function}
 We combine the generative model and the particle filter and conditional particle filter algorithms together to construct a generative function.
+We use the notation of Section 4.5 of~\citet{cusumano-towner-thesis}.
 Without loss of generality, let the arguments to the generative function be $x = (\theta, T)$ (recall that $\theta$ parametrizes the generative model joint distribution).
 For argument $(\theta, T)$ the generative function places all its probability mass on choice maps of the form:
 \[
@@ -75,15 +82,26 @@ For argument $(\theta, T)$ the generative function places all its probability ma
 \]
 where the probability for such a choice map $\tdict$ in terms of the underlying generative model as:
 \[
-    p(\tdict; (\theta, T)) := \sum_{\z_{1:T}} p(\z_{1:T}, \y_{1:T})
+    p(\tdict; (\theta, T)) := \sum_{\z_{1:T}} p(\z_{1:T}, \y_{1:T}) = p(\y_{1:T})
 \]
 We now endow the generative function with encapsulated randomness of the form:
 \[
 \omega = (\z_{1:T}^{1:N}, \abold_{1:T-1}^{1:N}, \z_{1:T}^*)
 \]
 We define:
-\[
-\mathring{p}(\omega; (\theta, T), \tdict) := p(\z_{1:T}^* | y_{1:T}) r_{\mathrm{CSMC}}(\z_{1:T}^{1:N}, \abold_{1:T-1}^{1:N}, I_T; \z_{1:T}^*)
-\]
+\begin{align*}
+\mathring{p}(\omega; (\theta, T), \tdict) &:= p(\z_{1:T}^* | y_{1:T}) r_{\mathrm{CSMC}}(\z_{1:T}^{1:N}, \abold_{1:T-1}^{1:N}, I_T; \z_{1:T}^*)\\
+\mathring{q}(\omega; (\theta, T), \tdict) &:= q_{\mathrm{SMC}}(\z_{1:T}^{1:N}, \abold_{1:T-1}^{1:N}, I_T, \z_{1:T}^*)
+\end{align*}
+Therefore:
+\begin{align*}
+\xi((\theta, T), \tdict, \omega)
+    &:= \frac{p(\tdict; (\theta, T)) \mathring{p}(\omega; (\theta, T), \tdict)}{\mathring{q}(\omega; (\theta, T), \tdict)}\\
+    &= \frac{p(\y_{1:T}) p(\z_{1:T}^* | y_{1:T}) r_{\mathrm{CSMC}}(\z_{1:T}^{1:N}, \abold_{1:T-1}^{1:N}, I_T; \z_{1:T}^*)}{q_{\mathrm{SMC}}(\z_{1:T}^{1:N}, \abold_{1:T-1}^{1:N}, I_T, \z_{1:T}^*)}\\
+    &= \prod_{t=1}^T \frac{1}{N} \sum_{i-1}^N w^{(i)}_t
+\end{align*}
+which is the marginal likelihood estimate from the particle filter (see~\citet{cusumano2017aide} for the derivation for the more general setting of SMC samplers with rejuvenation).
+
+\bibliography{references} 
 
 \end{document}
