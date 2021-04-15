@@ -102,6 +102,26 @@ Therefore:
 \end{align*}
 which is the marginal likelihood estimate from the particle filter (see~\citet{cusumano2017aide} for the derivation for the more general setting of SMC samplers with rejuvenation).
 
+\subsection{Simulate}
+The \emph{simulate} operation jointly samples $\tdict \sim p(\cdot; (\theta, T))$ and $\omega | \tdict \sim \mathring{p}(\cdot; (\theta, T), \tdict)$.
+It is possible to sample from this joint distribution by:
+\begin{enumerate}
+\item Sampling from the joint distribution of the underlying generative model: $\z_{1:T}^*, \y_{1:T} \sim p(\cdot)$.
+\item Executing the conditional particle filter algorithm given input $\z_{1:T}^*$ (the algorithm depends on $\y_{1:T}$ as well), which together with $\z_{1:T}^*$ gives the encapsulated randomness $\omega$.
+\end{enumerate}
+After executing conditional particle filter, $\xi((\theta, T), \tdict, \omega)$ is the particle filter marginal likelihood estimate.
+The operation returns a \emph{trace} containing this estimate along with $\y_{1:T}$ and $\omega$ and the arguments $(\theta, T)$.
+
+\subsection{Generate}
+We consider \emph{generate} operation acting on constraints $\tdict = \{1 \mapsto y_1, \ldots, T \mapsto y_T\}$ (it can be extended to handle other $\y_{1:T}$ via an internal proposal distribution family that sampels the subset of $\y_t$ that were not provided given those that were).
+It samples $\omega \sim \mathring{q}(\cdot; (\theta, T), \tdict)$, which in our case reduces to executing the particle filter.
+Then, $\xi((\theta, T), \tdict, \omega)$ is the particle filter marginal likelihood estimate.
+The operation returns a trace containing this estimate along with $\y_{1:T}$ and $\omega$ and the arguments $(\theta, T)$, as well as a \emph{weight}, which in our case reduces to $\xi((\theta, T), \tdict, \omega)$.
+
+\subsection{Update}
+The \emph{update} operation described in Section 4.5 of~\citet{cusumano-towner-thesis} samples fresh encapsulated randomness independently of the previous value of the encapsulated randomness, from $\mathring{q}$.
+For our example, this amounts to running the particle filter from scratch.
+
 \bibliography{references} 
 
 \end{document}
