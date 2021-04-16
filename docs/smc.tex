@@ -4,6 +4,7 @@
 \usepackage{amsmath}
 \usepackage{amsthm}
 \usepackage{bm}
+\usepackage{graphicx}
 
 \usepackage[round]{natbib}
 \renewcommand{\bibname}{References}
@@ -178,7 +179,28 @@ The index $I_T$ of the previous distinguished particle is replaced with a new in
 
 The weight is then:
 \begin{align*}
-\frac{
+& \frac{p(\tdict'; x') \mathring{p}(\omega'; x', \tdict')\mathring{q}(\omega; \omega', x', x, \tdict', \tdict)}
+{p(\tdict; x) \mathring{p}(\omega; x, \tdict) \mathring{q}(\omega'; \omega, x, x', \tdict, \tdict')}\\
+&= \frac{
+    p({\z'}_{1:T+1}^*, \y_{1:T+1})
+    r_{\mathrm{CSMC}}({\z'}_{1:T+1}^{1:N}, {\abold'}_{1:T}^{1:N}, I_{T+1}'; {\z'}_{1:T+1}^*)
+    \left( \frac{{w}_{T}^{(I_{T})}}{\sum_{j=1}^N {w}_{T}^{(j)}} \right)
+}{
+    p(\z_{1:T}^*, \y_{1:T})
+    r_{\mathrm{CSMC}}(\z_{1:T}^{1:N}, \abold_{1:T-1}^{1:N}, I_T; \z_{1:T}^*)
+    \left( \prod_{i=1}^N \frac{{w'}_{T}^{({a'}_{T}^{(i)})}}{\sum_{j=1}^N {w'}_{T}^{(j)}} k_{T+1}({z'}_{T+1}^{(i)}; {\z'}_{1:T}^{({a'}_{T}^{(i)})} ) \right)
+    \left( \frac{{w'}_{T+1}^{(I'_{T+1})}}{\sum_{j=1}^N {w'}_{T+1}^{(j)}} \right)
+}\\
+&= \frac{1}{N} \sum_{i=1}^N w_{T+1}^{(i)}
+\end{align*}
+See the appendix for the steps of the simplification.
+
+\appendix
+\section{Derivation}
+\begin{align*}
+& \frac{p(\tdict'; x') \mathring{p}(\omega'; x', \tdict')\mathring{q}(\omega; \omega', x', x, \tdict', \tdict)}
+{p(\tdict; x) \mathring{p}(\omega; x, \tdict) \mathring{q}(\omega'; \omega, x, x', \tdict, \tdict')}\\
+&= \frac{
     p({\z'}_{1:T+1}^*, \y_{1:T+1})
     r_{\mathrm{CSMC}}({\z'}_{1:T+1}^{1:N}, {\abold'}_{1:T}^{1:N}, I_{T+1}'; {\z'}_{1:T+1}^*)
     \left( \frac{{w}_{T}^{(I_{T})}}{\sum_{j=1}^N {w}_{T}^{(j)}} \right)
@@ -190,20 +212,25 @@ The weight is then:
 }
 \end{align*}
 
+We now simplify this expression by simplifying several subexpressions first.
+
+First:
 \begin{align*}
 \frac{p({\z'}_{1:T+1}^*, \y_{1:T+1})}{{w'}_{T+1}^{(I'_{T+1})}}
     &= \frac{p({\z'}_{1:T+1}^*, \y_{1:T+1})}
-            {\left(\frac{p({\z'}_{1:T+1}^*, \y_{1:T+1} | {\z'}_{1:T}^*)}{k_{T+1}({z'}_{T+1}^{*}; {\z'}_{1:T}^{*})}\right)}
-    = k_{T+1}({z'}_{T+1}^{*}; {\z'}_{1:T}^{*}) p({\z'}_{1:T}^*)
+            {\left(\frac{p({z'}_{T+1}^*, \y_{T+1} | {\z'}_{1:T}^*)}{k_{T+1}({z'}_{T+1}^{*}; {\z'}_{1:T}^{*})}\right)}
+    = k_{T+1}({z'}_{T+1}^{*}; {\z'}_{1:T}^{*}) p({\z'}_{1:T}^*, y_{1:T})
 \end{align*}
 
+Second:
 \begin{align*}
 \frac{p({\z}_{1:T}^*, \y_{1:T})}{{w}_{T}^{(I_{T})}}
     &= \frac{p({\z}_{1:T}^*, \y_{1:T})}
-            {\left(\frac{p({\z}_{1:T}^*, \y_{1:T} | {\z}_{1:T-1}^*)}{k_{T}({z}_{T}^{*}; {\z}_{1:T-1}^{*})}\right)}
-    = k_{T}({z}_{T}^{*}; {\z}_{1:T-1}^{*}) p({\z}_{1:T-1}^*)
+            {\left(\frac{p({z}_{T}^*, \y_{T} | {\z}_{1:T-1}^*)}{k_{T}({z}_{T}^{*}; {\z}_{1:T-1}^{*})}\right)}
+    = k_{T}({z}_{T}^{*}; {\z}_{1:T-1}^{*}) p({\z}_{1:T-1}^*, y_{1:T-1})
 \end{align*}
 
+Third:
 \begin{align*}
 & \frac{r_{\mathrm{CSMC}}({\z'}_{1:T+1}^{1:N}, {\abold'}_{1:T}^{1:N}, I_{T+1}'; {\z'}_{1:T+1}^*)}
 {r_{\mathrm{CSMC}}(\z_{1:T}^{1:N}, \abold_{1:T-1}^{1:N}, I_T; \z_{1:T}^*)}\\
@@ -216,7 +243,10 @@ The weight is then:
 \delta(\z_{1:T}^*,  (z_1^{(I_1)}, \ldots, z_T^{(I_T)}))
         \left( \prod_{\substack{i=1\\i \ne I_1}}^N k_1(z_1^{(i)}) \right)
         \left( \prod_{t=2}^T \prod_{\substack{i=1\\i \ne I_t}}^N \frac{w_{t-1}^{(a_{t-1}^{(i)})}}{\sum_{j=1}^N w_{t-1}^{(j)}} k_t(z_t^{(i)}; \z_{1:t-1}^{(a_{t-1}^{(i)})} )\right)
-}\\
+}
+\end{align*}
+(since both Kronecker delta conditions are always satisfied within the update operation:)
+\begin{align*}
 &= \frac{1}{N} \frac{
         \left( \prod_{\substack{i=1\\i \ne I'_1}}^N k_1({z'}_1^{(i)}) \right)
         \left( \prod_{t=2}^{T+1} \prod_{\substack{i=1\\i \ne I'_t}}^N \frac{{w'}_{t-1}^{({a'}_{t-1}^{(i)})}}{\sum_{j=1}^N {w'}_{t-1}^{(j)}} k_t({z'}_t^{(i)}; {\z'}_{1:t-1}^{({a'}_{t-1}^{(i)})} )\right)
@@ -225,7 +255,7 @@ The weight is then:
         \left( \prod_{t=2}^T \prod_{\substack{i=1\\i \ne I_t}}^N \frac{w_{t-1}^{(a_{t-1}^{(i)})}}{\sum_{j=1}^N w_{t-1}^{(j)}} k_t(z_t^{(i)}; \z_{1:t-1}^{(a_{t-1}^{(i)})} )\right)
 }
 \end{align*}
-
+Next simplifying the first ratio appearing in the $\mathrm{CSMC}$ expression, using that $z_1^{(i)} = {z'}_1^{(i)}$ for all $i \in \{1, \ldots, N\}$:
 \begin{align*}
 \frac{
     \prod_{\substack{i=1\\i \ne I'_1}}^N k_1({z'}_1^{(i)})
@@ -243,27 +273,43 @@ k_1(z_1^{(I_1)})
 k_1({z'}_1^{(I'_1)})
 }
 \end{align*}
-
+Next simplifying the second ratio appearing in the $\mathrm{CSMC}$ expression:
 \begin{align*}
 &\frac{
 \prod_{t=2}^{T+1} \prod_{\substack{i=1\\i \ne I'_t}}^N \frac{{w'}_{t-1}^{({a'}_{t-1}^{(i)})}}{\sum_{j=1}^N {w'}_{t-1}^{(j)}} k_t({z'}_t^{(i)}; {\z'}_{1:t-1}^{({a'}_{t-1}^{(i)})} )
 }{
 \prod_{t=2}^T \prod_{\substack{i=1\\i \ne I_t}}^N \frac{w_{t-1}^{(a_{t-1}^{(i)})}}{\sum_{j=1}^N w_{t-1}^{(j)}} k_t(z_t^{(i)}; \z_{1:t-1}^{(a_{t-1}^{(i)})} )
-}\\ &=
-\frac{
+}
+\end{align*}
+Separating the factor for $t = T+1$ in the numerator, and using that $z_t^{(i)} = {z'}_t^{(i)}$ for $t \in \{1, \ldots, T\}$ and $i \in \{1, \ldots, N\}$:
+\begin{align*}
+&= \frac{
+\left(
 \displaystyle \prod_{\substack{i=1\\i \ne I'_{T+1}}}^N \frac{{w'}_{T}^{({a'}_{T}^{(i)})}}{\sum_{j=1}^N {w'}_{T}^{(j)}} k_{T+1}({z'}_{T+1}^{(i)}; {\z'}_{1:T}^{({a'}_{T}^{(i)})} )
-\prod_{t=2}^{T} \frac{{w}_{t-1}^{({a}_{t-1}^{(I_t)})}}{\sum_{j=1}^N {w}_{t-1}^{(j)}} k_t({z}_t^{(I_t)}; {\z}_{1:t-1}^{({a}_{t-1}^{(I_t)})} )
+\right)
+\left(
+\displaystyle \prod_{t=2}^{T} \frac{{w}_{t-1}^{({a}_{t-1}^{(I_t)})}}{\sum_{j=1}^N {w}_{t-1}^{(j)}} k_t({z}_t^{(I_t)}; {\z}_{1:t-1}^{({a}_{t-1}^{(I_t)})} )
+\right)
 }{
 \displaystyle \prod_{t=2}^{T} \frac{{w'}_{t-1}^{({a'}_{t-1}^{(I_t')})}}{\sum_{j=1}^N {w'}_{t-1}^{(j)}} k_t({z'}_t^{(I_t')}; {\z'}_{1:t-1}^{({a'}_{t-1}^{(I_t')})} )
-}\\ &=
+}
+\end{align*}
+Using that $w_{t-1}^{(j)} ={w'}_{t-1}^{(j)}$ for $t \in \{1, \ldots, T\}$ and $j \in \{1, \ldots, N\}$ and cancelling factors:
+\begin{align*}
+&=
 \frac{
+\left(
 \displaystyle \prod_{\substack{i=1\\i \ne I'_{T+1}}}^N \frac{{w'}_{T}^{({a'}_{T}^{(i)})}}{\sum_{j=1}^N {w'}_{T}^{(j)}} k_{T+1}({z'}_{T+1}^{(i)}; {\z'}_{1:T}^{({a'}_{T}^{(i)})} )
-\prod_{t=2}^{T} {w}_{t-1}^{({a}_{t-1}^{(I_t)})} k_t({z}_t^{(I_t)}; {\z}_{1:t-1}^{({a}_{t-1}^{(I_t)})} )
+\right)
+\left(
+\displaystyle \prod_{t=2}^{T} {w}_{t-1}^{({a}_{t-1}^{(I_t)})} k_t({z}_t^{(I_t)}; {\z}_{1:t-1}^{({a}_{t-1}^{(I_t)})} )
+\right)
 }{
 \displaystyle \prod_{t=2}^{T} {w'}_{t-1}^{({a'}_{t-1}^{(I_t')})} k_t({z'}_t^{(I_t')}; {\z'}_{1:t-1}^{({a'}_{t-1}^{(I_t')})} )
 }
 \end{align*}
 
+Next, substituting the simplified subexpressions into $\mathrm{CSMC}$ expression:
 \begin{align*}
 & \frac{r_{\mathrm{CSMC}}({\z'}_{1:T+1}^{1:N}, {\abold'}_{1:T}^{1:N}, I_{T+1}'; {\z'}_{1:T+1}^*)}
 {r_{\mathrm{CSMC}}(\z_{1:T}^{1:N}, \abold_{1:T-1}^{1:N}, I_T; \z_{1:T}^*)}\\
@@ -302,10 +348,26 @@ k_T(z_T^*; \z_{1:T-1}^*)
 \displaystyle \prod_{t=2}^{T} p(z_{t-1}^*, y_{t-1} | {\z}_{1:t-2}^{*})
 }{
 \displaystyle k_T({z'}_T^*; {\z'}_{1:T-1}^*) \prod_{t=2}^{T} p({z'}_{t-1}^*, y_{t-1} | {\z'}_{1:t-2}^*)
+}\\
+&=
+\frac{1}{N}
+\left( \displaystyle \prod_{\substack{i=1\\i \ne I'_{T+1}}}^N \frac{{w'}_{T}^{({a'}_{T}^{(i)})}}{\sum_{j=1}^N {w'}_{T}^{(j)}} k_{T+1}({z'}_{T+1}^{(i)}; {\z'}_{1:T}^{({a'}_{T}^{(i)})} ) \right)
+\frac{
+k_T(z_T^*; \z_{1:T-1}^*)
+}{
+k_T({z'}_T^*; {\z'}_{1:T-1}^*) 
+}
+\prod_{t=2}^{T} \frac{
+\displaystyle p(z_{t-1}^*, y_{t-1} | {\z}_{1:t-2}^{*})
+}{
+\displaystyle p({z'}_{t-1}^*, y_{t-1} | {\z'}_{1:t-2}^*)
 }
 \end{align*}
 
-Continuing with the weight:
+Now, substituting this simplified $\mathrm{CSMC}$ expression into the weight expression:\\
+
+\scalebox{0.8}{%
+\begin{minipage}{\linewidth}
 \begin{align*}
 &
 \frac{1}{N} \frac{
@@ -313,122 +375,176 @@ k_{T+1}({z'}_{T+1}^*; {\z'}_{1:T}^*)
 }{
 k_T(z_T^*; \z_{1:T-1}^*)
 }
-\frac{p({\z'}_{1:T}^*)}{p({\z}_{1:T-1}^*)}
+\frac{p({\z'}_{1:T}^*, y_{1:T})}{p({\z}_{1:T-1}^*, y_{1:T-1})}
 \frac{
 \sum_{j=1}^N {w'}_{T+1}^{(j)}
 }{
 \sum_{j=1}^N {w}_{T}^{(j)}
 }
+\left(
 \frac{
 \displaystyle \prod_{\substack{i=1\\i \ne I'_{T+1}}}^N \frac{{w'}_{T}^{({a'}_{T}^{(i)})}}{\sum_{j=1}^N {w'}_{T}^{(j)}} k_{T+1}({z'}_{T+1}^{(i)}; {\z'}_{1:T}^{({a'}_{T}^{(i)})} )
 }{
 \displaystyle \prod_{i=1}^N \frac{{w'}_{T}^{({a'}_{T}^{(i)})}}{\sum_{j=1}^N {w'}_{T}^{(j)}} k_{T+1}({z'}_{T+1}^{(i)}; {\z'}_{1:T}^{({a'}_{T}^{(i)})} )
 }
+\right)
 \frac{
 k_T(z_T^*; \z_{1:T-1}^*)
 }{
 k_T({z'}_T^*; {\z'}_{1:T-1}^*)
 }
-\prod_{t=2}^T \frac{p(z_{t-1}^*, y_{t-1} | {\z}_{1:t-2}^{*})}{p({z'}_{t-1}^*, y_{t-1} | {\z'}_{1:t-2}^*)}\\
-&=
+\left( \prod_{t=2}^T \frac{p(z_{t-1}^*, y_{t-1} | {\z}_{1:t-2}^{*})}{p({z'}_{t-1}^*, y_{t-1} | {\z'}_{1:t-2}^*)} \right)\\
+\end{align*}
+Cancelling factors $k_T(z_T^*; {\z}_{1:T-1}^*)$ and $1 / k_T(z_T^*; {\z}_{1:T-1}^*)$ and rearranging factor $k_T({z'}_T^*; {\z'}^*_{1:T-1})$:
+\begin{align*}
+&
+\frac{1}{N} \frac{
+k_{T+1}({z'}_{T+1}^*; {\z'}_{1:T}^*) 
+}{
+k_T({z'}_T^*; {\z'}_{1:T-1}^*)
+}
+\frac{p({\z'}_{1:T}^*, y_{1:T})}{p({\z}_{1:T-1}^*, y_{1:T-1})}
+\frac{
+\sum_{j=1}^N {w'}_{T+1}^{(j)}
+}{
+\sum_{j=1}^N {w}_{T}^{(j)}
+}
+\left(
+\frac{
+\displaystyle \prod_{\substack{i=1\\i \ne I'_{T+1}}}^N \frac{{w'}_{T}^{({a'}_{T}^{(i)})}}{\sum_{j=1}^N {w'}_{T}^{(j)}} k_{T+1}({z'}_{T+1}^{(i)}; {\z'}_{1:T}^{({a'}_{T}^{(i)})} )
+}{
+\displaystyle \prod_{i=1}^N \frac{{w'}_{T}^{({a'}_{T}^{(i)})}}{\sum_{j=1}^N {w'}_{T}^{(j)}} k_{T+1}({z'}_{T+1}^{(i)}; {\z'}_{1:T}^{({a'}_{T}^{(i)})} )
+}
+\right)
+\left( \prod_{t=2}^T \frac{p(z_{t-1}^*, y_{t-1} | {\z}_{1:t-2}^{*})}{p({z'}_{t-1}^*, y_{t-1} | {\z'}_{1:t-2}^*)} \right)\\
+\end{align*}
+Simplifying the ratio of products:
+\begin{align*}
+&
 \frac{1}{N} \frac{
 k_{T+1}({z'}_{T+1}^*; {\z'}_{1:T}^*)
 }{
 k_T({z'}_T^*; {\z'}_{1:T-1}^*)
 }
-\frac{p({\z'}_{1:T}^*)}{p({\z}_{1:T-1}^*)}
+\frac{p({\z'}_{1:T}^*, y_{1:T})}{p({\z}_{1:T-1}^*, y_{1:T-1})}
 \frac{
 \sum_{j=1}^N {w'}_{T+1}^{(j)}
 }{
 \sum_{j=1}^N {w}_{T}^{(j)}
 }
-\prod_{t=2}^T \frac{p(z_{t-1}^*, y_{t-1} | {\z}_{1:t-2}^{*})}{p({z'}_{t-1}^*, y_{t-1} | {\z'}_{1:t-2}^*)}
+\left(
 \frac{1}{
 \frac{{w'}_{T}^{({a'}_{T}^{(I_{T+1}')})}}{\sum_{j=1}^N {w'}_{T}^{(j)}} k_{T+1}({z'}_{T+1}^{(I_{T+1}')}; {\z'}_{1:T}^{({a'}_{T}^{(I_{T+1}')})} )
-}\\
-&=
+}
+\right)
+\left( \prod_{t=2}^T \frac{p(z_{t-1}^*, y_{t-1} | {\z}_{1:t-2}^{*})}{p({z'}_{t-1}^*, y_{t-1} | {\z'}_{1:t-2}^*)} \right)
+\end{align*}
+Using ${a'}_t^{(I_{t+1}')} = I'_t$ for all $t \in \{1, \ldots, T-1\}$ and ${z'}^*_t = {z'}_t^{(I_t)}$ for all $t \in \{1, \ldots, T\}$:
+\begin{align*}
+&
+\frac{1}{N}
 \frac{
 k_{T+1}({z'}_{T+1}^*; {\z'}_{1:T}^*)
 }{
 k_T({z'}_T^*; {\z'}_{1:T-1}^*)
 }
-\frac{p({\z'}_{1:T}^*)}{p({\z}_{1:T-1}^*)}
+\frac{p({\z'}_{1:T}^*, y_{1:T})}{p({\z}_{1:T-1}^*, y_{1:T-1})}
 \frac{
 \sum_{j=1}^N {w'}_{T+1}^{(j)}
 }{
 \sum_{j=1}^N {w}_{T}^{(j)}
 }
-\prod_{t=2}^T \frac{p(z_{t-1}^*, y_{t-1} | {\z}_{1:t-2}^{*})}{p({z'}_{t-1}^*, y_{t-1} | {\z'}_{1:t-2}^*)}
+\left( \prod_{t=2}^T \frac{p(z_{t-1}^*, y_{t-1} | {\z}_{1:t-2}^{*})}{p({z'}_{t-1}^*, y_{t-1} | {\z'}_{1:t-2}^*)} \right)
 \frac{1}{
 \frac{{w'}_{T}^{(I_T')}}{\sum_{j=1}^N {w'}_{T}^{(j)}} k_{T+1}({z'}_{T+1}^{*}; {\z'}_{1:T}^{*} )
-}\\
-&=
+}
+\end{align*}
+Cancelling factors $k_{T+1}({z'}_{T+1}^*; {\z'}_{1:T}^*)$ and $1 / k_{T+1}({z'}_{T+1}^*; {\z'}_{1:T}^*)$:
+\begin{align*}
+&
 \frac{1}{N}
 \frac{
-k_{T+1}({z'}_{T+1}^*; {\z'}_{1:T}^*)
+1
 }{
 k_T({z'}_T^*; {\z'}_{1:T-1}^*)
 }
-\frac{p({\z'}_{1:T}^*)}{p({\z}_{1:T-1}^*)}
+\frac{p({\z'}_{1:T}^*, y_{1:T})}{p({\z}_{1:T-1}^*, y_{1:T-1})}
 \frac{
 \sum_{j=1}^N {w'}_{T+1}^{(j)}
 }{
-1
+\sum_{j=1}^N {w}_{T}^{(j)}
 }
-\prod_{t=2}^T \frac{p(z_{t-1}^*, y_{t-1} | {\z}_{1:t-2}^{*})}{p({z'}_{t-1}^*, y_{t-1} | {\z'}_{1:t-2}^*)}
+\left( \prod_{t=2}^T \frac{p(z_{t-1}^*, y_{t-1} | {\z}_{1:t-2}^{*})}{p({z'}_{t-1}^*, y_{t-1} | {\z'}_{1:t-2}^*)} \right)
 \frac{1}{
-{w'}_{T}^{(I_T')} k_{T+1}({z'}_{T+1}^{*}; {\z'}_{1:T}^{*} )
-}\\
-&= \frac{
+\frac{{w'}_{T}^{(I_T')}}{\sum_{j=1}^N {w'}_{T}^{(j)}}
+}
+\end{align*}
+
+Using that $w_T^{(j)} = {w'}_T^{(j)}$ for all $j \in \{1, \ldots, N\}$:
+\begin{align*}
+&
+\frac{1}{N}
+\frac{
 1
 }{
 k_T({z'}_T^*; {\z'}_{1:T-1}^*)
 }
-\frac{p({\z'}_{1:T}^*)}{p({\z}_{1:T-1}^*)}
+\frac{p({\z'}_{1:T}^*, y_{1:T})}{p({\z}_{1:T-1}^*, y_{1:T-1})}
 \frac{
 \sum_{j=1}^N {w'}_{T+1}^{(j)}
 }{
 1
 }
-\prod_{t=2}^T \frac{p(z_{t-1}^*, y_{t-1} | {\z}_{1:t-2}^{*})}{p({z'}_{t-1}^*, y_{t-1} | {\z'}_{1:t-2}^*)}
+\left( \prod_{t=2}^T \frac{p(z_{t-1}^*, y_{t-1} | {\z}_{1:t-2}^{*})}{p({z'}_{t-1}^*, y_{t-1} | {\z'}_{1:t-2}^*)} \right)
 \frac{1}{
 {w'}_{T}^{(I_T')}
-}\\
-&=
+}
+\end{align*}
+Expanding ${w'}_T^{(I_T')}$:
+\begin{align*}
+&
 \frac{1}{N}
 \frac{
 1
 }{
 k_T({z'}_T^*; {\z'}_{1:T-1}^*)
 }
-\frac{p({\z'}_{1:T}^*)}{p({\z}_{1:T-1}^*)}
+\frac{p({\z'}_{1:T}^*, y_{1:T})}{p({\z}_{1:T-1}^*, y_{1:T-1})}
 \frac{
 \sum_{j=1}^N {w'}_{T+1}^{(j)}
 }{
 1
 }
-\prod_{t=2}^T \frac{p(z_{t-1}^*, y_{t-1} | {\z}_{1:t-2}^{*})}{p({z'}_{t-1}^*, y_{t-1} | {\z'}_{1:t-2}^*)}
+\left( \prod_{t=2}^T \frac{p(z_{t-1}^*, y_{t-1} | {\z}_{1:t-2}^{*})}{p({z'}_{t-1}^*, y_{t-1} | {\z'}_{1:t-2}^*)} \right)
 \frac{
 k_T({z'}_{T}^*; {\z'}_{1:T-1}^*)
 }{
 p({z'}_{T}^*, y_T| {\z'}_{1:T-1}^*)
-}\\
-&=
+}
+\end{align*}
+Cancelling factors $k_T({z'}_T^*; {\z'}_{1:T-1}^*)$ and $1 / k_T({z'}_T^*; {\z'}_{1:T-1}^*)$:
+\begin{align*}
+&
 \frac{1}{N}
+\frac{p({\z'}_{1:T}^*, y_{1:T})}{p({\z}_{1:T-1}^*, y_{1:T-1})}
 \frac{
 \sum_{j=1}^N {w'}_{T+1}^{(j)}
 }{
 1
 }
-\frac{p({\z'}_{1:T}^*)}{p({\z}_{1:T-1}^*)}
-\prod_{t=2}^T \frac{p(z_{t-1}^*, y_{t-1} | {\z}_{1:t-2}^{*})}{p({z'}_{t-1}^*, y_{t-1} | {\z'}_{1:t-2}^*)}
+\left( \prod_{t=2}^T \frac{p(z_{t-1}^*, y_{t-1} | {\z}_{1:t-2}^{*})}{p({z'}_{t-1}^*, y_{t-1} | {\z'}_{1:t-2}^*)} \right)
 \frac{
 1
 }{
 p({z'}_{T}^*, y_T| {\z'}_{1:T-1}^*)
-}\\
-&= \frac{p({\z}_{1:T-1}^*, y_{1:T-1})}{p({\z'}_{1:T}^*, y_{1:T})} \frac{1}{N} \sum_{j=1}^N {w'}_{T+1}^{(j)}
+}
 \end{align*}
+Cancelling factors:
+\begin{align*}
+& \frac{1}{N} \sum_{j=1}^N {w'}_{T+1}^{(j)}
+\end{align*}
+\end{minipage}
+} % scalebox
 
 % TODO explicitly relate to SMC^2
 \bibliography{references} 
