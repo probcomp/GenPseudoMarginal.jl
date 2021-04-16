@@ -195,6 +195,21 @@ The weight is then:
 \end{align*}
 See the appendix for the steps of the simplification.
 
+Using an \emph{update} implementation of the following form within the likelihood model, with a standard vanilla particle filter algorithm in Gen's standard inference library for inference over $\theta$ given $y_1, y_2, \ldots, y_T$ reproduces the SMC$^2$ algorithm~\citep{chopin2013smc2}.
+Applying standard MH rejuvenation moves to the parameters $\theta$ automatically results in particle marginal Metropolis-Hastings~\citep{andrieu2010particle} rejuvenation moves being used (the particle filter within the likelihood model for each $\theta$-particle is re-executed from scratch).\\
+
+\noindent \textbf{Implementation note}
+Note that it is not required to maintain the entire particle system, or even one entire chain of the form $(z_1, \ldots, z_T)$, in memory, within the implementation of \emph{update}, for models where
+\[
+p(z_t | z_{1:t-1}) = p(z_t | z_{t-1})
+\]
+For calls to \emph{update} that modify the parameters $\theta$ and trigger a re-execution of the particle filter,
+the particle filter can be implemented in an online fashion.
+For calls to \emph{update} that do not modify the parameters $\theta$, but only extend the time step,
+the particle filter can be extended just from the particles at the most recent time step.
+
+\bibliography{references} 
+
 \appendix
 \section{Derivation}
 \begin{align*}
@@ -545,8 +560,5 @@ Cancelling factors:
 \end{align*}
 \end{minipage}
 } % scalebox
-
-% TODO explicitly relate to SMC^2
-\bibliography{references} 
 
 \end{document}
