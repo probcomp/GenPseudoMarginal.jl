@@ -59,7 +59,7 @@ The particle filter algorithm samples from the following joint distribution:
 \begin{align*}
     & q_{\mathrm{SMC}}(\z_{1:T}^{1:N}, \abold_{1:T-1}^{1:N}, I_T, \z_{1:T}^*)\\
     &=  \left( \prod_{i=1}^N k_1(z_1^{(i)}) \right)
-        \left( \prod_{t=2}^T \prod_{i=1}^N \frac{w_{t-1}^{(a_{t-1}^{(i)})}}{\sum_{i=1}^N w_{t-1}^{(j)}} k_t(z_t^{(i)}; \z_{1:t-1}^{(a_{t-1}^{(i)})} )\right)
+        \left( \prod_{t=2}^T \prod_{i=1}^N \frac{w_{t-1}^{(a_{t-1}^{(i)})}}{\sum_{j=1}^N w_{t-1}^{(j)}} k_t(z_t^{(i)}; \z_{1:t-1}^{(a_{t-1}^{(i)})} )\right)
         \left( \frac{w_T^{(I_T)}}{\sum_{j=1}^N w_T^{(j)}} \right)
         \delta(\z_{1:T}^*,  (z_1^{(I_1)}, \ldots, z_T^{(I_T)}))
 \end{align*}
@@ -68,8 +68,9 @@ Given $\z_{1:T}^*$, the conditional particle filter algorithm samples from the f
 \begin{align*}
     & r_{\mathrm{CSMC}}(\z_{1:T}^{1:N}, \abold_{1:T-1}^{1:N}, I_T; \z_{1:T}^*)\\
     &=  \delta(\z_{1:T}^*,  (z_1^{(I_1)}, \ldots, z_T^{(I_T)}))
+        \frac{1}{N^T}
         \left( \prod_{\substack{i=1\\i \ne I_1}}^N k_1(z_1^{(i)}) \right)
-        \left( \prod_{t=2}^T \prod_{\substack{i=1\\i \ne I_t}}^N \frac{w_{t-1}^{(a_{t-1}^{(i)})}}{\sum_{i=1}^N w_{t-1}^{(j)}} k_t(z_t^{(i)}; \z_{1:t-1}^{(a_{t-1}^{(i)})} )\right)
+        \left( \prod_{t=2}^T \prod_{\substack{i=1\\i \ne I_t}}^N \frac{w_{t-1}^{(a_{t-1}^{(i)})}}{\sum_{j=1}^N w_{t-1}^{(j)}} k_t(z_t^{(i)}; \z_{1:t-1}^{(a_{t-1}^{(i)})} )\right)
 \end{align*}
 
 \section{Constructing a generative function}
@@ -98,7 +99,7 @@ Therefore:
 \xi((\theta, T), \tdict, \omega)
     &:= \frac{p(\tdict; (\theta, T)) \mathring{p}(\omega; (\theta, T), \tdict)}{\mathring{q}(\omega; (\theta, T), \tdict)}\\
     &= \frac{p(\y_{1:T}) p(\z_{1:T}^* | y_{1:T}) r_{\mathrm{CSMC}}(\z_{1:T}^{1:N}, \abold_{1:T-1}^{1:N}, I_T; \z_{1:T}^*)}{q_{\mathrm{SMC}}(\z_{1:T}^{1:N}, \abold_{1:T-1}^{1:N}, I_T, \z_{1:T}^*)}\\
-    &= \prod_{t=1}^T \frac{1}{N} \sum_{i-1}^N w^{(i)}_t
+    &= \prod_{t=1}^T \frac{1}{N} \sum_{i=1}^N w^{(i)}_t
 \end{align*}
 which is the marginal likelihood estimate from the particle filter (see~\citet{cusumano2017aide} for the derivation for the more general setting of SMC samplers with rejuvenation).
 
@@ -160,7 +161,7 @@ $\tdict' = \{1 \mapsto y_1, \ldots, T \mapsto y_T, T + 1 \mapsto y_{T+1}\}$.
 We define:
 \begin{align*}
  \mathring{q}(\omega'; \omega, x, x', \tdict, \tdict')
-    := \left( \prod_{i=1}^N \frac{{w'}_{T}^{({a'}_{T}^{(i)})}}{\sum_{i=1}^N {w'}_{T}^{(j)}} k_{T+1}({z'}_{T+1}^{(i)}; {\z'}_{1:T}^{({a'}_{T}^{(i)})} ) \right)
+    := \left( \prod_{i=1}^N \frac{{w'}_{T}^{({a'}_{T}^{(i)})}}{\sum_{j=1}^N {w'}_{T}^{(j)}} k_{T+1}({z'}_{T+1}^{(i)}; {\z'}_{1:T}^{({a'}_{T}^{(i)})} ) \right)
         \left( \frac{{w'}_{T+1}^{(I'_{T+1})}}{\sum_{j=1}^N {w'}_{T+1}^{(j)}} \right)
 \end{align*}
 and 
@@ -184,7 +185,7 @@ The weight is then:
 }{
     p(\z_{1:T}^*, \y_{1:T})
     r_{\mathrm{CSMC}}(\z_{1:T}^{1:N}, \abold_{1:T-1}^{1:N}, I_T; \z_{1:T}^*)
-    \left( \prod_{i=1}^N \frac{{w'}_{T}^{({a'}_{T}^{(i)})}}{\sum_{i=1}^N {w'}_{T}^{(j)}} k_{T+1}({z'}_{T+1}^{(i)}; {\z'}_{1:T}^{({a'}_{T}^{(i)})} ) \right)
+    \left( \prod_{i=1}^N \frac{{w'}_{T}^{({a'}_{T}^{(i)})}}{\sum_{j=1}^N {w'}_{T}^{(j)}} k_{T+1}({z'}_{T+1}^{(i)}; {\z'}_{1:T}^{({a'}_{T}^{(i)})} ) \right)
     \left( \frac{{w'}_{T+1}^{(I'_{T+1})}}{\sum_{j=1}^N {w'}_{T+1}^{(j)}} \right)
 }
 \end{align*}
@@ -192,36 +193,36 @@ The weight is then:
 \begin{align*}
 \frac{p({\z'}_{1:T+1}^*, \y_{1:T+1})}{{w'}_{T+1}^{(I'_{T+1})}}
     &= \frac{p({\z'}_{1:T+1}^*, \y_{1:T+1})}
-            {\left(\frac{p({\z'}_{1:T+1}^*, \y_{1:T+1})}{k_{T+1}({z'}_{T+1}^{*}; {\z'}_{1:T}^{*})}\right)}
-    = k_{T+1}({z'}_{T+1}^{*}; {\z'}_{1:T}^{*})
+            {\left(\frac{p({\z'}_{1:T+1}^*, \y_{1:T+1} | {\z'}_{1:T}^*)}{k_{T+1}({z'}_{T+1}^{*}; {\z'}_{1:T}^{*})}\right)}
+    = k_{T+1}({z'}_{T+1}^{*}; {\z'}_{1:T}^{*}) p({\z'}_{1:T}^*)
 \end{align*}
 
 \begin{align*}
 \frac{p({\z}_{1:T}^*, \y_{1:T})}{{w}_{T}^{(I_{T})}}
     &= \frac{p({\z}_{1:T}^*, \y_{1:T})}
-            {\left(\frac{p({\z}_{1:T}^*, \y_{1:T})}{k_{T}({z}_{T}^{*}; {\z}_{1:T-1}^{*})}\right)}
-    = k_{T}({z}_{T}^{*}; {\z}_{1:T-1}^{*})
+            {\left(\frac{p({\z}_{1:T}^*, \y_{1:T} | {\z}_{1:T-1}^*)}{k_{T}({z}_{T}^{*}; {\z}_{1:T-1}^{*})}\right)}
+    = k_{T}({z}_{T}^{*}; {\z}_{1:T-1}^{*}) p({\z}_{1:T-1}^*)
 \end{align*}
 
 \begin{align*}
 & \frac{r_{\mathrm{CSMC}}({\z'}_{1:T+1}^{1:N}, {\abold'}_{1:T}^{1:N}, I_{T+1}'; {\z'}_{1:T+1}^*)}
 {r_{\mathrm{CSMC}}(\z_{1:T}^{1:N}, \abold_{1:T-1}^{1:N}, I_T; \z_{1:T}^*)}\\
-&= \frac{
+&= \frac{1}{N} \frac{
 \delta({\z'}_{1:T+1}^*,  ({z'}_1^{(I'_1)}, \ldots, {z'}_{T+1}^{(I'_{T+1})}))
         \left( \prod_{\substack{i=1\\i \ne I'_1}}^N k_1({z'}_1^{(i)}) \right)
-        \left( \prod_{t=2}^{T+1} \prod_{\substack{i=1\\i \ne I'_t}}^N \frac{{w'}_{t-1}^{({a'}_{t-1}^{(i)})}}{\sum_{i=1}^N {w'}_{t-1}^{(j)}} k_t({z'}_t^{(i)}; {\z'}_{1:t-1}^{({a'}_{t-1}^{(i)})} )\right)
+        \left( \prod_{t=2}^{T+1} \prod_{\substack{i=1\\i \ne I'_t}}^N \frac{{w'}_{t-1}^{({a'}_{t-1}^{(i)})}}{\sum_{j=1}^N {w'}_{t-1}^{(j)}} k_t({z'}_t^{(i)}; {\z'}_{1:t-1}^{({a'}_{t-1}^{(i)})} )\right)
 }
 {
 \delta(\z_{1:T}^*,  (z_1^{(I_1)}, \ldots, z_T^{(I_T)}))
         \left( \prod_{\substack{i=1\\i \ne I_1}}^N k_1(z_1^{(i)}) \right)
-        \left( \prod_{t=2}^T \prod_{\substack{i=1\\i \ne I_t}}^N \frac{w_{t-1}^{(a_{t-1}^{(i)})}}{\sum_{i=1}^N w_{t-1}^{(j)}} k_t(z_t^{(i)}; \z_{1:t-1}^{(a_{t-1}^{(i)})} )\right)
+        \left( \prod_{t=2}^T \prod_{\substack{i=1\\i \ne I_t}}^N \frac{w_{t-1}^{(a_{t-1}^{(i)})}}{\sum_{j=1}^N w_{t-1}^{(j)}} k_t(z_t^{(i)}; \z_{1:t-1}^{(a_{t-1}^{(i)})} )\right)
 }\\
-&= \frac{
+&= \frac{1}{N} \frac{
         \left( \prod_{\substack{i=1\\i \ne I'_1}}^N k_1({z'}_1^{(i)}) \right)
-        \left( \prod_{t=2}^{T+1} \prod_{\substack{i=1\\i \ne I'_t}}^N \frac{{w'}_{t-1}^{({a'}_{t-1}^{(i)})}}{\sum_{i=1}^N {w'}_{t-1}^{(j)}} k_t({z'}_t^{(i)}; {\z'}_{1:t-1}^{({a'}_{t-1}^{(i)})} )\right)
+        \left( \prod_{t=2}^{T+1} \prod_{\substack{i=1\\i \ne I'_t}}^N \frac{{w'}_{t-1}^{({a'}_{t-1}^{(i)})}}{\sum_{j=1}^N {w'}_{t-1}^{(j)}} k_t({z'}_t^{(i)}; {\z'}_{1:t-1}^{({a'}_{t-1}^{(i)})} )\right)
 }{
         \left( \prod_{\substack{i=1\\i \ne I_1}}^N k_1(z_1^{(i)}) \right)
-        \left( \prod_{t=2}^T \prod_{\substack{i=1\\i \ne I_t}}^N \frac{w_{t-1}^{(a_{t-1}^{(i)})}}{\sum_{i=1}^N w_{t-1}^{(j)}} k_t(z_t^{(i)}; \z_{1:t-1}^{(a_{t-1}^{(i)})} )\right)
+        \left( \prod_{t=2}^T \prod_{\substack{i=1\\i \ne I_t}}^N \frac{w_{t-1}^{(a_{t-1}^{(i)})}}{\sum_{j=1}^N w_{t-1}^{(j)}} k_t(z_t^{(i)}; \z_{1:t-1}^{(a_{t-1}^{(i)})} )\right)
 }
 \end{align*}
 
@@ -267,35 +268,35 @@ k_1({z'}_1^{(I'_1)})
 & \frac{r_{\mathrm{CSMC}}({\z'}_{1:T+1}^{1:N}, {\abold'}_{1:T}^{1:N}, I_{T+1}'; {\z'}_{1:T+1}^*)}
 {r_{\mathrm{CSMC}}(\z_{1:T}^{1:N}, \abold_{1:T-1}^{1:N}, I_T; \z_{1:T}^*)}\\
 &= 
-\frac{
+\frac{1}{N} \frac{
 k_1(z_1^{(I_1)}) \displaystyle \prod_{\substack{i=1\\i \ne I'_{T+1}}}^N \frac{{w'}_{T}^{({a'}_{T}^{(i)})}}{\sum_{j=1}^N {w'}_{T}^{(j)}} k_{T+1}({z'}_{T+1}^{(i)}; {\z'}_{1:T}^{({a'}_{T}^{(i)})} )
 \prod_{t=2}^{T} {w}_{t-1}^{({a}_{t-1}^{(I_t)})} k_t({z}_t^{(I_t)}; {\z}_{1:t-1}^{({a}_{t-1}^{(I_t)})} )
 }{
 k_1({z'}_1^{(I_1')}) \displaystyle \prod_{t=2}^{T} {w'}_{t-1}^{({a'}_{t-1}^{(I_t')})} k_t({z'}_t^{(I_t')}; {\z'}_{1:t-1}^{({a'}_{t-1}^{(I_t')})} )
 }\\
 &=
-\frac{
+\frac{1}{N} \frac{
 k_1(z_1^{(I_1)}) \displaystyle \prod_{\substack{i=1\\i \ne I'_{T+1}}}^N \frac{{w'}_{T}^{({a'}_{T}^{(i)})}}{\sum_{j=1}^N {w'}_{T}^{(j)}} k_{T+1}({z'}_{T+1}^{(i)}; {\z'}_{1:T}^{({a'}_{T}^{(i)})} )
 \prod_{t=2}^{T} {w}_{t-1}^{(I_{t-1})} k_t({z}_t^*; {\z}_{1:t-1}^{*} )
 }{
 k_1({z'}_1^{(I_1')}) \displaystyle \prod_{t=2}^{T} {w'}_{t-1}^{(I'_{t-1})} k_t({z'}_t^{*}; {\z'}_{1:t-1}^{*} )
 }\\
 &=
-\frac{
+\frac{1}{N} \frac{
 k_1(z_1^{(I_1)}) \displaystyle \prod_{\substack{i=1\\i \ne I'_{T+1}}}^N \frac{{w'}_{T}^{({a'}_{T}^{(i)})}}{\sum_{j=1}^N {w'}_{T}^{(j)}} k_{T+1}({z'}_{T+1}^{(i)}; {\z'}_{1:T}^{({a'}_{T}^{(i)})} )
 \prod_{t=2}^{T} \frac{p(z_{t-1}^*, y_{t-1} | {\z}_{1:t-2}^{*})}{k_{t-1}(z_{t-1}^{*}; \z_{1:t-2}^{*})} k_t({z}_t^*; {\z}_{1:t-1}^{*} )
 }{
 k_1({z'}_1^{(I_1')}) \displaystyle \prod_{t=2}^{T} \frac{p({z'}_{t-1}^*, y_{t-1} | {\z'}_{1:t-2}^*)}{k_{t-1}({z'}_{t-1}^*; {\z'}_{1:t-2}^{*})} k_t({z'}_t^{*}; {\z'}_{1:t-1}^{*} )
 }\\
 &=
-\frac{
+\frac{1}{N} \frac{
 k_1(z_1^{(I_1)}) \displaystyle \prod_{\substack{i=1\\i \ne I'_{T+1}}}^N \frac{{w'}_{T}^{({a'}_{T}^{(i)})}}{\sum_{j=1}^N {w'}_{T}^{(j)}} k_{T+1}({z'}_{T+1}^{(i)}; {\z'}_{1:T}^{({a'}_{T}^{(i)})} )
 \frac{k_T(z_T^*; \z_{1:T-1}^*)}{k_1(z_1^*)} \prod_{t=2}^{T} p(z_{t-1}^*, y_{t-1} | {\z}_{1:t-2}^{*})
 }{
 k_1({z'}_1^{(I_1')}) \displaystyle \frac{k_T({z'}_T^*; {\z'}_{1:T-1}^*)}{k_1({z'}_1^*)} \prod_{t=2}^{T} p({z'}_{t-1}^*, y_{t-1} | {\z'}_{1:t-2}^*)
 }\\
 &=
-\frac{
+\frac{1}{N} \frac{
 \left( \displaystyle \prod_{\substack{i=1\\i \ne I'_{T+1}}}^N \frac{{w'}_{T}^{({a'}_{T}^{(i)})}}{\sum_{j=1}^N {w'}_{T}^{(j)}} k_{T+1}({z'}_{T+1}^{(i)}; {\z'}_{1:T}^{({a'}_{T}^{(i)})} ) \right)
 k_T(z_T^*; \z_{1:T-1}^*)
 \displaystyle \prod_{t=2}^{T} p(z_{t-1}^*, y_{t-1} | {\z}_{1:t-2}^{*})
@@ -306,11 +307,13 @@ k_T(z_T^*; \z_{1:T-1}^*)
 
 Continuing with the weight:
 \begin{align*}
-& \frac{
+&
+\frac{1}{N} \frac{
 k_{T+1}({z'}_{T+1}^*; {\z'}_{1:T}^*) 
 }{
 k_T(z_T^*; \z_{1:T-1}^*)
 }
+\frac{p({\z'}_{1:T}^*)}{p({\z}_{1:T-1}^*)}
 \frac{
 \sum_{j=1}^N {w'}_{T+1}^{(j)}
 }{
@@ -328,11 +331,12 @@ k_T({z'}_T^*; {\z'}_{1:T-1}^*)
 }
 \prod_{t=2}^T \frac{p(z_{t-1}^*, y_{t-1} | {\z}_{1:t-2}^{*})}{p({z'}_{t-1}^*, y_{t-1} | {\z'}_{1:t-2}^*)}\\
 &=
-\frac{
+\frac{1}{N} \frac{
 k_{T+1}({z'}_{T+1}^*; {\z'}_{1:T}^*)
 }{
 k_T({z'}_T^*; {\z'}_{1:T-1}^*)
 }
+\frac{p({\z'}_{1:T}^*)}{p({\z}_{1:T-1}^*)}
 \frac{
 \sum_{j=1}^N {w'}_{T+1}^{(j)}
 }{
@@ -348,6 +352,7 @@ k_{T+1}({z'}_{T+1}^*; {\z'}_{1:T}^*)
 }{
 k_T({z'}_T^*; {\z'}_{1:T-1}^*)
 }
+\frac{p({\z'}_{1:T}^*)}{p({\z}_{1:T-1}^*)}
 \frac{
 \sum_{j=1}^N {w'}_{T+1}^{(j)}
 }{
@@ -357,11 +362,14 @@ k_T({z'}_T^*; {\z'}_{1:T-1}^*)
 \frac{1}{
 \frac{{w'}_{T}^{(I_T')}}{\sum_{j=1}^N {w'}_{T}^{(j)}} k_{T+1}({z'}_{T+1}^{*}; {\z'}_{1:T}^{*} )
 }\\
-&= \frac{
+&=
+\frac{1}{N}
+\frac{
 k_{T+1}({z'}_{T+1}^*; {\z'}_{1:T}^*)
 }{
 k_T({z'}_T^*; {\z'}_{1:T-1}^*)
 }
+\frac{p({\z'}_{1:T}^*)}{p({\z}_{1:T-1}^*)}
 \frac{
 \sum_{j=1}^N {w'}_{T+1}^{(j)}
 }{
@@ -376,6 +384,7 @@ k_T({z'}_T^*; {\z'}_{1:T-1}^*)
 }{
 k_T({z'}_T^*; {\z'}_{1:T-1}^*)
 }
+\frac{p({\z'}_{1:T}^*)}{p({\z}_{1:T-1}^*)}
 \frac{
 \sum_{j=1}^N {w'}_{T+1}^{(j)}
 }{
@@ -385,11 +394,14 @@ k_T({z'}_T^*; {\z'}_{1:T-1}^*)
 \frac{1}{
 {w'}_{T}^{(I_T')}
 }\\
-&= \frac{
+&=
+\frac{1}{N}
+\frac{
 1
 }{
 k_T({z'}_T^*; {\z'}_{1:T-1}^*)
 }
+\frac{p({\z'}_{1:T}^*)}{p({\z}_{1:T-1}^*)}
 \frac{
 \sum_{j=1}^N {w'}_{T+1}^{(j)}
 }{
@@ -399,20 +411,23 @@ k_T({z'}_T^*; {\z'}_{1:T-1}^*)
 \frac{
 k_T({z'}_{T}^*; {\z'}_{1:T-1}^*)
 }{
-p({z'}_{T}^*, y_T; {\z'}_{1:T-1}^*)
+p({z'}_{T}^*, y_T| {\z'}_{1:T-1}^*)
 }\\
 &=
+\frac{1}{N}
 \frac{
 \sum_{j=1}^N {w'}_{T+1}^{(j)}
 }{
 1
 }
+\frac{p({\z'}_{1:T}^*)}{p({\z}_{1:T-1}^*)}
 \prod_{t=2}^T \frac{p(z_{t-1}^*, y_{t-1} | {\z}_{1:t-2}^{*})}{p({z'}_{t-1}^*, y_{t-1} | {\z'}_{1:t-2}^*)}
 \frac{
 1
 }{
-p({z'}_{T}^*, y_T; {\z'}_{1:T-1}^*)
-}
+p({z'}_{T}^*, y_T| {\z'}_{1:T-1}^*)
+}\\
+&= \frac{p({\z}_{1:T-1}^*, y_{1:T-1})}{p({\z'}_{1:T}^*, y_{1:T})} \frac{1}{N} \sum_{j=1}^N {w'}_{T+1}^{(j)}
 \end{align*}
 
 % TODO explicitly relate to SMC^2
