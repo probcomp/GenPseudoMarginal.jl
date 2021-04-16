@@ -119,9 +119,194 @@ Then, $\xi((\theta, T), \tdict, \omega)$ is the particle filter marginal likelih
 The operation returns a trace containing this estimate along with $\y_{1:T}$ and $\omega$ and the arguments $(\theta, T)$, as well as a \emph{weight}, which in our case reduces to $\xi((\theta, T), \tdict, \omega)$.
 
 \subsection{Update}
-The \emph{update} operation described in Section 4.5 of~\citet{cusumano-towner-thesis} samples fresh encapsulated randomness independently of the previous value of the encapsulated randomness, from $\mathring{q}$.
-For our example, this amounts to running the particle filter from scratch.
 
+\subsubsection{Generalizing the operation}
+The \emph{update} operation described in Section 4.5 of~\citet{cusumano-towner-thesis} samples fresh encapsulated randomness independently of the previous value of the encapsulated randomness, from $\mathring{q}$.
+(It first computes $\tdict'$ from its inputs, but we do not discuss this process here. We assume $\tdict'$ has already been computed.)
+For our example, this amounts to running the particle filter from scratch, which will typically scale as $O(T)$.
+If the parameters $\theta$ did not change in the call to update, and if the time step $T$ was incremented by $1$, then re-running the particle filter from scratch is computationally onerous.
+This is a common situation when e.g. running an SMC algorithm to infer the parameters $\theta$.
+We now show how to instead extend the particle filter state, allowing for $O(1)$ scaling of update in these cases.
+
+First, we introduce another family of auxiliary distributions into the generative function:
+\[
+\mathring{q}(\omega'; \omega, x, x', \tdict, \tdict')
+\]
+This is a family of probability distributions on $\omega'$, indexed by $(x, \tdict, \omega, x', \tdict')$ such that $p(\tdict; x) > 0$, $\mathring{p}(\omega; x, \tdict) > 0$, and $p(\tdict'; x') > 0$.
+It must satisfy the following condition:
+\[
+\mathring{q}(\omega'; \omega, x, x', \tdict, \tdict') > 0 \iff \mathring{q}(\omega; \omega', x', x, \tdict', \tdict) > 0
+\]
+Then, we modify the following elements of the \emph{update} operation:
+\begin{enumerate}
+\item We sample $\omega'$ as $\omega' \sim \mathring{q}(\cdot; \omega, x, x', \tdict, \tdict')$
+\item We return the following weight:
+\[
+\frac{p(\tdict'; x') \mathring{p}(\omega'; x', \tdict')\mathring{q}(\omega; \omega', x', x, \tdict', \tdict)}
+{p(\tdict; x) \mathring{p}(\omega; x, \tdict) \mathring{q}(\omega'; \omega, x, x', \tdict, \tdict')}
+\]
+\end{enumerate}
+Note that in the special case of:
+\[
+\mathring{q}(\omega'; \omega, x, x', \tdict, \tdict') = \mathring{q}(\omega'; x', \tdict')
+\]
+this reduces to the definition of \emph{update} given in~\citet{cusumano-towner-thesis}.
+
+\subsubsection{Application to particle filter pseudomarginal generative functions}
+For our case, let $T > 1$.
+Let $x = (\theta, T)$ and $x' = (\theta, T+1)$, and 
+$\tdict = \{1 \mapsto y_1, \ldots, T \mapsto y_T\}$ and 
+$\tdict' = \{1 \mapsto y_1, \ldots, T \mapsto y_T, T + 1 \mapsto y_{T+1}\}$.
+We define:
+\begin{align*}
+ \mathring{q}(\omega'; \omega, x, x', \tdict, \tdict')
+    := \left( \prod_{i=1}^N \frac{{w'}_{T}^{({a'}_{T}^{(i)})}}{\sum_{i=1}^N {w'}_{T}^{(j)}} k_{T+1}({z'}_{T+1}^{(i)}; {\z'}_{1:T}^{({a'}_{T}^{(i)})} ) \right)
+        \left( \frac{{w'}_{T+1}^{(I'_{T+1})}}{\sum_{j=1}^N {w'}_{T+1}^{(j)}} \right)
+\end{align*}
+and 
+\begin{align*}
+ \mathring{q}(\omega; \omega', x', x, \tdict', \tdict)
+    := \left( \frac{{w}_{T}^{(I_{T})}}{\sum_{j=1}^N {w}_{T}^{(j)}} \right)
+\end{align*}
+for $\omega, \omega'$ such that
+${\z'}_{1:T}^{1:N} = {\z}_{1:T}^{1:N}$ and 
+${\abold'}_{1:T-1}^{1:N} = {\abold}_{1:T-1}^{1:N}$
+and zero otherwise.
+In words, $\omega'$ is an extension of the particle system $(\z_{1:T-1}^{1:N}, \abold_{1:T-1}^{1:N})$, with new random variables ${\abold'}_{T}^{1:N}$ and ${\z'}_{T+1}^{1:N}$ sampled from the proposal distribution $k_{T+1}$.
+The index $I_T$ of the previous distinguished particle is replaced with a new index $I_{T+1}'$, so that in general $\z_{1:T}^{*}$ and ${\z'}_{1:T+1}^{*}$ do not share common states.
+
+The weight is then:
+\begin{align*}
+\frac{
+    p({\z'}_{1:T+1}^*, \y_{1:T+1})
+    r_{\mathrm{CSMC}}({\z'}_{1:T+1}^{1:N}, {\abold'}_{1:T}^{1:N}, I_{T+1}'; {\z'}_{1:T+1}^*)
+    \left( \frac{{w}_{T}^{(I_{T})}}{\sum_{j=1}^N {w}_{T}^{(j)}} \right)
+}{
+    p(\z_{1:T}^*, \y_{1:T})
+    r_{\mathrm{CSMC}}(\z_{1:T}^{1:N}, \abold_{1:T-1}^{1:N}, I_T; \z_{1:T}^*)
+    \left( \prod_{i=1}^N \frac{{w'}_{T}^{({a'}_{T}^{(i)})}}{\sum_{i=1}^N {w'}_{T}^{(j)}} k_{T+1}({z'}_{T+1}^{(i)}; {\z'}_{1:T}^{({a'}_{T}^{(i)})} ) \right)
+    \left( \frac{{w'}_{T+1}^{(I'_{T+1})}}{\sum_{j=1}^N {w'}_{T+1}^{(j)}} \right)
+}
+\end{align*}
+
+\begin{align*}
+\frac{p({\z'}_{1:T+1}^*, \y_{1:T+1})}{{w'}_{T+1}^{(I'_{T+1})}}
+    &= \frac{p({\z'}_{1:T+1}^*, \y_{1:T+1})}
+            {\left(\frac{p({\z'}_{1:T+1}^*, \y_{1:T+1})}{k_{T+1}({z'}_{T+1}^{*}; {\z'}_{1:T}^{*})}\right)}
+    = k_{T+1}({z'}_{T+1}^{*}; {\z'}_{1:T}^{*})
+\end{align*}
+
+\begin{align*}
+\frac{p({\z}_{1:T}^*, \y_{1:T})}{{w}_{T}^{(I_{T})}}
+    &= \frac{p({\z}_{1:T}^*, \y_{1:T})}
+            {\left(\frac{p({\z}_{1:T}^*, \y_{1:T})}{k_{T}({z}_{T}^{*}; {\z}_{1:T-1}^{*})}\right)}
+    = k_{T}({z}_{T}^{*}; {\z}_{1:T-1}^{*})
+\end{align*}
+
+\begin{align*}
+& \frac{r_{\mathrm{CSMC}}({\z'}_{1:T+1}^{1:N}, {\abold'}_{1:T}^{1:N}, I_{T+1}'; {\z'}_{1:T+1}^*)}
+{r_{\mathrm{CSMC}}(\z_{1:T}^{1:N}, \abold_{1:T-1}^{1:N}, I_T; \z_{1:T}^*)}\\
+&= \frac{
+\delta({\z'}_{1:T+1}^*,  ({z'}_1^{(I'_1)}, \ldots, {z'}_{T+1}^{(I'_{T+1})}))
+        \left( \prod_{\substack{i=1\\i \ne I'_1}}^N k_1({z'}_1^{(i)}) \right)
+        \left( \prod_{t=2}^{T+1} \prod_{\substack{i=1\\i \ne I'_t}}^N \frac{{w'}_{t-1}^{({a'}_{t-1}^{(i)})}}{\sum_{i=1}^N {w'}_{t-1}^{(j)}} k_t({z'}_t^{(i)}; {\z'}_{1:t-1}^{({a'}_{t-1}^{(i)})} )\right)
+}
+{
+\delta(\z_{1:T}^*,  (z_1^{(I_1)}, \ldots, z_T^{(I_T)}))
+        \left( \prod_{\substack{i=1\\i \ne I_1}}^N k_1(z_1^{(i)}) \right)
+        \left( \prod_{t=2}^T \prod_{\substack{i=1\\i \ne I_t}}^N \frac{w_{t-1}^{(a_{t-1}^{(i)})}}{\sum_{i=1}^N w_{t-1}^{(j)}} k_t(z_t^{(i)}; \z_{1:t-1}^{(a_{t-1}^{(i)})} )\right)
+}\\
+&= \frac{
+        \left( \prod_{\substack{i=1\\i \ne I'_1}}^N k_1({z'}_1^{(i)}) \right)
+        \left( \prod_{t=2}^{T+1} \prod_{\substack{i=1\\i \ne I'_t}}^N \frac{{w'}_{t-1}^{({a'}_{t-1}^{(i)})}}{\sum_{i=1}^N {w'}_{t-1}^{(j)}} k_t({z'}_t^{(i)}; {\z'}_{1:t-1}^{({a'}_{t-1}^{(i)})} )\right)
+}{
+        \left( \prod_{\substack{i=1\\i \ne I_1}}^N k_1(z_1^{(i)}) \right)
+        \left( \prod_{t=2}^T \prod_{\substack{i=1\\i \ne I_t}}^N \frac{w_{t-1}^{(a_{t-1}^{(i)})}}{\sum_{i=1}^N w_{t-1}^{(j)}} k_t(z_t^{(i)}; \z_{1:t-1}^{(a_{t-1}^{(i)})} )\right)
+}
+\end{align*}
+
+\begin{align*}
+\frac{
+    \prod_{\substack{i=1\\i \ne I'_1}}^N k_1({z'}_1^{(i)})
+}{
+    \prod_{\substack{i=1\\i \ne I_1}}^N k_1(z_1^{(i)})
+} =
+\frac{
+    k_1(z_1^{(I_1)}) \prod_{\substack{i=1}}^N k_1({z'}_1^{(i)})
+}{
+    k_1({z'}_1^{(I'_1)}) \prod_{\substack{i=1}}^N k_1(z_1^{(i)})
+} =
+\frac{
+k_1(z_1^{(I_1)}) 
+}{
+k_1({z'}_1^{(I'_1)})
+}
+\end{align*}
+
+\begin{align*}
+&\frac{
+\prod_{t=2}^{T+1} \prod_{\substack{i=1\\i \ne I'_t}}^N \frac{{w'}_{t-1}^{({a'}_{t-1}^{(i)})}}{\sum_{j=1}^N {w'}_{t-1}^{(j)}} k_t({z'}_t^{(i)}; {\z'}_{1:t-1}^{({a'}_{t-1}^{(i)})} )
+}{
+\prod_{t=2}^T \prod_{\substack{i=1\\i \ne I_t}}^N \frac{w_{t-1}^{(a_{t-1}^{(i)})}}{\sum_{j=1}^N w_{t-1}^{(j)}} k_t(z_t^{(i)}; \z_{1:t-1}^{(a_{t-1}^{(i)})} )
+}\\ &=
+\frac{
+\displaystyle \prod_{\substack{i=1\\i \ne I'_{T+1}}}^N \frac{{w'}_{T}^{({a'}_{T}^{(i)})}}{\sum_{j=1}^N {w'}_{T}^{(j)}} k_{T+1}({z'}_{T+1}^{(i)}; {\z'}_{1:T}^{({a'}_{T}^{(i)})} )
+\prod_{t=2}^{T} \frac{{w}_{t-1}^{({a}_{t-1}^{(I_t)})}}{\sum_{j=1}^N {w}_{t-1}^{(j)}} k_t({z}_t^{(I_t)}; {\z}_{1:t-1}^{({a}_{t-1}^{(I_t)})} )
+}{
+\displaystyle \prod_{t=2}^{T} \frac{{w'}_{t-1}^{({a'}_{t-1}^{(I_t')})}}{\sum_{j=1}^N {w'}_{t-1}^{(j)}} k_t({z'}_t^{(I_t')}; {\z'}_{1:t-1}^{({a'}_{t-1}^{(I_t')})} )
+}\\ &=
+\frac{
+\displaystyle \prod_{\substack{i=1\\i \ne I'_{T+1}}}^N \frac{{w'}_{T}^{({a'}_{T}^{(i)})}}{\sum_{j=1}^N {w'}_{T}^{(j)}} k_{T+1}({z'}_{T+1}^{(i)}; {\z'}_{1:T}^{({a'}_{T}^{(i)})} )
+\prod_{t=2}^{T} {w}_{t-1}^{({a}_{t-1}^{(I_t)})} k_t({z}_t^{(I_t)}; {\z}_{1:t-1}^{({a}_{t-1}^{(I_t)})} )
+}{
+\displaystyle \prod_{t=2}^{T} {w'}_{t-1}^{({a'}_{t-1}^{(I_t')})} k_t({z'}_t^{(I_t')}; {\z'}_{1:t-1}^{({a'}_{t-1}^{(I_t')})} )
+}
+\end{align*}
+
+\begin{align*}
+& \frac{r_{\mathrm{CSMC}}({\z'}_{1:T+1}^{1:N}, {\abold'}_{1:T}^{1:N}, I_{T+1}'; {\z'}_{1:T+1}^*)}
+{r_{\mathrm{CSMC}}(\z_{1:T}^{1:N}, \abold_{1:T-1}^{1:N}, I_T; \z_{1:T}^*)}\\
+&= 
+\frac{
+k_1(z_1^{(I_1)}) \displaystyle \prod_{\substack{i=1\\i \ne I'_{T+1}}}^N \frac{{w'}_{T}^{({a'}_{T}^{(i)})}}{\sum_{j=1}^N {w'}_{T}^{(j)}} k_{T+1}({z'}_{T+1}^{(i)}; {\z'}_{1:T}^{({a'}_{T}^{(i)})} )
+\prod_{t=2}^{T} {w}_{t-1}^{({a}_{t-1}^{(I_t)})} k_t({z}_t^{(I_t)}; {\z}_{1:t-1}^{({a}_{t-1}^{(I_t)})} )
+}{
+k_1({z'}_1^{(I_1')}) \displaystyle \prod_{t=2}^{T} {w'}_{t-1}^{({a'}_{t-1}^{(I_t')})} k_t({z'}_t^{(I_t')}; {\z'}_{1:t-1}^{({a'}_{t-1}^{(I_t')})} )
+}\\
+&=
+\frac{
+k_1(z_1^{(I_1)}) \displaystyle \prod_{\substack{i=1\\i \ne I'_{T+1}}}^N \frac{{w'}_{T}^{({a'}_{T}^{(i)})}}{\sum_{j=1}^N {w'}_{T}^{(j)}} k_{T+1}({z'}_{T+1}^{(i)}; {\z'}_{1:T}^{({a'}_{T}^{(i)})} )
+\prod_{t=2}^{T} {w}_{t-1}^{(I_{t-1})} k_t({z}_t^*; {\z}_{1:t-1}^{*} )
+}{
+k_1({z'}_1^{(I_1')}) \displaystyle \prod_{t=2}^{T} {w'}_{t-1}^{(I'_{t-1})} k_t({z'}_t^{*}; {\z'}_{1:t-1}^{*} )
+}\\
+&=
+\frac{
+k_1(z_1^{(I_1)}) \displaystyle \prod_{\substack{i=1\\i \ne I'_{T+1}}}^N \frac{{w'}_{T}^{({a'}_{T}^{(i)})}}{\sum_{j=1}^N {w'}_{T}^{(j)}} k_{T+1}({z'}_{T+1}^{(i)}; {\z'}_{1:T}^{({a'}_{T}^{(i)})} )
+\prod_{t=2}^{T} \frac{p(z_{t-1}^*, y_{t-1} | {\z}_{1:t-2}^{*})}{k_{t-1}(z_{t-1}^{*}; \z_{1:t-2}^{*})} k_t({z}_t^*; {\z}_{1:t-1}^{*} )
+}{
+k_1({z'}_1^{(I_1')}) \displaystyle \prod_{t=2}^{T} \frac{p({z'}_{t-1}^*, y_{t-1} | {\z'}_{1:t-2}^*)}{k_{t-1}({z'}_{t-1}^*; {\z'}_{1:t-2}^{*})} k_t({z'}_t^{*}; {\z'}_{1:t-1}^{*} )
+}\\
+&=
+\frac{
+k_1(z_1^{(I_1)}) \displaystyle \prod_{\substack{i=1\\i \ne I'_{T+1}}}^N \frac{{w'}_{T}^{({a'}_{T}^{(i)})}}{\sum_{j=1}^N {w'}_{T}^{(j)}} k_{T+1}({z'}_{T+1}^{(i)}; {\z'}_{1:T}^{({a'}_{T}^{(i)})} )
+\frac{k_T(z_T^*; \z_{1:T-1}^*)}{k_1(z_1^*)} \prod_{t=2}^{T} p(z_{t-1}^*, y_{t-1} | {\z}_{1:t-2}^{*})
+}{
+k_1({z'}_1^{(I_1')}) \displaystyle \frac{k_T({z'}_T^*; {\z'}_{1:T-1}^*)}{k_1({z'}_1^*)} \prod_{t=2}^{T} p({z'}_{t-1}^*, y_{t-1} | {\z'}_{1:t-2}^*)
+}\\
+&=
+\frac{
+\left( \displaystyle \prod_{\substack{i=1\\i \ne I'_{T+1}}}^N \frac{{w'}_{T}^{({a'}_{T}^{(i)})}}{\sum_{j=1}^N {w'}_{T}^{(j)}} k_{T+1}({z'}_{T+1}^{(i)}; {\z'}_{1:T}^{({a'}_{T}^{(i)})} ) \right)
+k_T(z_T^*; \z_{1:T-1}^*)
+\displaystyle \prod_{t=2}^{T} p(z_{t-1}^*, y_{t-1} | {\z}_{1:t-2}^{*})
+}{
+\displaystyle k_T({z'}_T^*; {\z'}_{1:T-1}^*) \prod_{t=2}^{T} p({z'}_{t-1}^*, y_{t-1} | {\z'}_{1:t-2}^*)
+}
+\end{align*}
+
+Continuing with the weight:
+
+% TODO explicitly relate to SMC^2
 \bibliography{references} 
 
 \end{document}
