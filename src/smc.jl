@@ -1,35 +1,16 @@
 using Gen
 using Parameters: @with_kw
-using GenStateSpaceModels
 import FunctionalCollections
 
-# [ ] accept an init(), dynamics(), and observation() generative functions..
+export PFPseudoMarginalGF
+export encapsulate
 
-# init(path, obs_model_params) -> state
-# dynamics(path, obs_model_params, prev_state) -> state
-# emission(path, obs_model_params, state) -> nothing
+# NOTE: to support projecting on empty selection, we would need to define an
+# internal proposal on the observed data that we can assess. then, project on
+# an empty selection would return the ratio of the SMC marginal likelihood
+# estimate and this internal proposal density.
 
-
-# GenStateSpaceModels has monolithic 'dynamics_params' and 'emission_params'
-# that's fine
-
-# args will be 
-# TODO return value will be nothing..
-# we can implement trace getters that return aux data..
-# we could sample a distinguished particle and expose the steps variables that way..
-
-struct PFPseudoMarginalTrace{T,U}
-    gen_fn::GenerativeFunction{T,U}
-    particle_filter_state::ParticleFilterState{U}
-    all_args::FunctionalCollections.PersistentVector{Tuple}
-    all_data::FunctionalCollections.PersistentVector{ChoiceMap}
-    T::Int
-end
-
-Base.get_args(trace::PFPseudoMarginalTrace) = trace.args
-Base.get_score(trace::PFPseudoMarginalTrace) = trace.lml_estimate
-
-struct PFPseudoMarginalGF{T,U} <: GenerativeFunction{T,PFPseudoMarginalTrace{U}}
+@with_kw struct PFPseudoMarginalGF{T,U} <: GenerativeFunction{Nothing,Trace}
     model::GenerativeFunction{T,U}
 
     # a function from an integer >= 1 (step) to a collection of addresses
@@ -40,7 +21,8 @@ struct PFPseudoMarginalGF{T,U} <: GenerativeFunction{T,PFPseudoMarginalTrace{U}}
     # == T
     get_step_args::Function 
 
-    # a function from an integer >= 1 (step) to a generative function # TODO currently just using fwd sim.
+    # a function from an integer >= 1 (step) to a generative function
+    # TODO add support for this; currently we are just using fwd sim.
     #get_proposal::Function 
 
     num_particles::Int
@@ -51,29 +33,59 @@ struct PFPseudoMarginalGF{T,U} <: GenerativeFunction{T,PFPseudoMarginalTrace{U}}
     reuse_particle_system::Function # a function of two argument tuples
 end
 
+# we can implement trace getters that return aux data..
+# we could sample a distinguished particle and expose the steps variables that way..
+
+struct PFPseudoMarginalTrace{T,U} <: Gen.Trace
+    gen_fn::PFPseudoMarginalGF{T,U}
+    pf_state::Gen.ParticleFilterState{U}
+    all_args::FunctionalCollections.PersistentVector{Tuple}
+    all_data::FunctionalCollections.PersistentVector{ChoiceMap}
+    distinguished_particle::Int
+    T::Int
+end
+
+Gen.get_gen_fn(trace::PFPseudoMarginalTrace) = trace.gen_fn
+Gen.get_args(trace::PFPseudoMarginalTrace) = trace.all_args[end]
+Gen.get_score(trace::PFPseudoMarginalTrace) = log_ml_estimate(trace.pf_state)
+Gen.get_retval(trace::PFPseudoMarginalTrace) = nothing
+Gen.get_choices(trace::PFPseudoMarginalTrace) = merge(trace.all_data...)
+Gen.project(trace::PFPseudoMarginalTrace, ::Selection) = error("not implemented")
+Gen.project(trace::PFPseudoMarginalTrace, ::AllSelection) = log_ml_estimate(trace.pf_state)
+
+
 function reuse_particle_system(gen_fn::PFPseudoMarginalGF, prev_args, args, argdiffs)
     return gen_fn.reuse_particle_system(prev_args, args, argdiffs)
 end
 
 get_T(gen_fn::PFPseudoMarginalGF, args) = gen_fn.get_T(args)
-data_addrs(gen_fn::PFPseudoMarginalGF, t) = gen_fn.data_addrs(t)
+data_addrs(gen_fn::PFPseudoMarginalGF, T) = gen_fn.data_addrs(T)
 num_particles(gen_fn::PFPseudoMarginalGF) = gen_fn.num_particles
 get_model(gen_fn::PFPseudoMarginalGF) = gen_fn.model
+get_step_args(gen_fn::PFPseudoMarginalGF, args, T) = gen_fn.get_step_args(args, T)
+
+function sample_distinguished_particle(pf_state::Gen.ParticleFilterState)
+    (_, log_normalized_weights) = Gen.normalize_weights(pf_state.log_weights)
+    weights = exp.(log_normalized_weights)
+    return categorical(weights / sum(weights))
+end
 
 function extend_pf(
         pf_state::Gen.ParticleFilterState, args::Tuple, argdiffs::Tuple, constraints::ChoiceMap,
         prev_T::Int, new_T::Int)
     # TODO avoid copying with a better data structure
     pf_state = Gen.ParticleFilterState(
-        copy(trace.pf_state.traces),
-        copy(trace.pf_state.new_traces),
-        copy(trace.pf_state.log_weights),
-        trace.pf_state.log_ml_est,
-        copy(trace.pf_state.parents))
+        copy(pf_state.traces),
+        copy(pf_state.new_traces),
+        copy(pf_state.log_weights),
+        pf_state.log_ml_est,
+        copy(pf_state.parents))
     @assert new_T == prev_T + 1
     @assert maybe_resample!(pf_state; ess_threshold=Inf) # always resample
-    particle_filter_step!(pf_state, args, argdiffs, constraints)
-    return pf_state
+    log_incremental_weights, = particle_filter_step!(pf_state, args, argdiffs, constraints)
+    log_increment = logsumexp(log_incremental_weights) - log(length(log_incremental_weights))
+    distinguished_particle = sample_distinguished_particle(pf_state)
+    return (pf_state, log_increment, distinguished_particle)
 end
 
 function fresh_pf(
@@ -91,27 +103,29 @@ function fresh_pf(
         @assert maybe_resample!(pf_state; ess_threshold=Inf) # always resample
         particle_filter_step!(pf_state, args, argdiffs, data)
     end
-    return pf_state
+    distinguished_particle = sample_distinguished_particle(pf_state)
+    return (pf_state, distinguished_particle)
 end
 
 function Gen.simulate(gen_fn::PFPseudoMarginalGF, args::Tuple)
     error("not implemented")
     # 1. simulate from the model
+    # model_trace = simulate(gen_fn.model, args)
     # 2. run conditional SMC
     # 3. record marginal likelihood estimate and particle system
 end
 
 function Gen.generate(gen_fn::PFPseudoMarginalGF{T,U}, args::Tuple, constraints::ChoiceMap) where {T,U}
-    if get_T(args) != 1
+    if get_T(gen_fn, args) != 1
         error("not implemented")
     end
     all_args = FunctionalCollections.PersistentVector{Tuple}()
-    all_args = FunctionalCollections.push(args)
+    all_args = FunctionalCollections.push(all_args, args)
     all_data = FunctionalCollections.PersistentVector{ChoiceMap}()
-    all_data = FunctionalCollections.push(constraints)
-    pf_state = fresh_pf(gen_fn, all_args, all_data, ()) # argdiffs is unused
+    all_data = FunctionalCollections.push(all_data, constraints)
+    (pf_state, distinguished_particle) = fresh_pf(gen_fn, all_args, all_data, ()) # argdiffs is unused
     trace = PFPseudoMarginalTrace{T,U}(
-        gen_fn, pf_state, all_args, all_data, get_T(args))
+        gen_fn, pf_state, all_args, all_data, distinguished_particle, get_T(gen_fn, args))
     log_weight = log_ml_estimate(pf_state)
     return (trace, log_weight)
 end
@@ -127,22 +141,25 @@ function Gen.update(
         if new_T > prev_T
             if new_T != prev_T + 1
                 error("support for extending the particle system by more than one step has not been implemented")
+                # TODO this can be implemented pretty easily..
             end
-            if isempty(get_selected(constraints, complement(select(data_addrs(new_T)...))))
+            if isempty(get_selected(constraints, complement(select(data_addrs(gen_fn, new_T)...))))
                 # handled case
                 # use case: extending particle system via update, within outer SMC
                 # reuse_particle_system(prev_args, args) == true,
                 # and there are no constraints other than for the new time step's observations
-                (pf_state, log_increment) = extend_pf(trace.particle_filter_state, args, argdiffs, constraints, prev_T, new_T)
+                (pf_state, log_increment, distinguished_particle) = extend_pf(
+                    trace.pf_state, args, argdiffs, constraints, prev_T, new_T)
                 all_args = FunctionalCollections.push(trace.all_args, args)
                 all_data = FunctionalCollections.push(trace.all_data, constraints)
-                trace = PseudoMarginalTrace(trace.gen_fn, pf_state, all_args, all_data, new_T)
+                trace = PFPseudoMarginalTrace(trace.gen_fn, pf_state, all_args, all_data, distinguished_particle, new_T)
                 weight = log_increment
                 retdiff = NoChange()
                 discard = EmptyChoiceMap()
                 return (trace, weight, retdiff, discard)
             else
                 error("support for extending the particle system while also updating previous choices has not been implemented")
+                # TODO this will require a full fresh of the particle system
             end
         elseif new_T < prev_T
             # 1. contract the SMC particle system by the necessary number of steps
@@ -168,10 +185,10 @@ function Gen.update(
             # use case: MCMC moves that affect the args, but that don't extend the number of steps
             # (e.g. MCMC rejuvenation moves within outer SMC)
             prev_ml_estimate = log_ml_estimate(trace.pf_state)
-            all_args = FunctionalCollections.PersistentVector{Tuple}([get_step_args(args, T) for T in 1:new_T])
+            all_args = FunctionalCollections.PersistentVector{Tuple}([get_step_args(gen_fn, args, T) for T in 1:new_T])
             all_data = trace.all_data
-            pf_state = fresh_pf(gen_fn, all_args, all_data, num_particles(gen_fn))
-            trace = PseudoMarginalTrace(gen_fn, pf_state, all_args, all_data, new_T)
+            (pf_state, distinguished_particle) = fresh_pf(gen_fn, all_args, all_data, ())
+            trace = PFPseudoMarginalTrace(gen_fn, pf_state, all_args, all_data, distinguished_particle, new_T)
             weight = log_ml_estimate(pf_state) - prev_ml_estimate
             retdiff = NoChange()
             discard = EmptyChoiceMap()
@@ -188,3 +205,4 @@ function Gen.update(
 
     @assert false
 end
+
