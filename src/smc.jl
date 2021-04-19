@@ -5,11 +5,6 @@ import FunctionalCollections
 export PFPseudoMarginalGF
 export encapsulate
 
-# NOTE: to support projecting on empty selection, we would need to define an
-# internal proposal on the observed data that we can assess. then, project on
-# an empty selection would return the ratio of the SMC marginal likelihood
-# estimate and this internal proposal density.
-
 @with_kw struct PFPseudoMarginalGF{T,U} <: GenerativeFunction{Nothing,Trace}
     model::GenerativeFunction{T,U}
 
@@ -23,7 +18,7 @@ export encapsulate
 
     # a function from an integer >= 1 (step) to a generative function
     # TODO add support for this; currently we are just using fwd sim.
-    #get_proposal::Function 
+    get_proposal::Union{Function,Nothing}=nothing
 
     num_particles::Int
 
@@ -40,6 +35,7 @@ struct PFPseudoMarginalTrace{T,U} <: Gen.Trace
     gen_fn::PFPseudoMarginalGF{T,U}
     pf_state::Gen.ParticleFilterState{U}
     all_args::FunctionalCollections.PersistentVector{Tuple}
+    all_argdiffs::FunctionalCollections.PersistentVector{Tuple}
     all_data::FunctionalCollections.PersistentVector{ChoiceMap}
     distinguished_particle::Int
     T::Int
@@ -53,6 +49,12 @@ Gen.get_choices(trace::PFPseudoMarginalTrace) = merge(trace.all_data...)
 Gen.project(trace::PFPseudoMarginalTrace, ::Selection) = error("not implemented")
 Gen.project(trace::PFPseudoMarginalTrace, ::AllSelection) = log_ml_estimate(trace.pf_state)
 
+# NOTE: to support projecting on empty selection, we would need to define an
+# internal proposal on the observed data that we can assess. then, project on
+# an empty selection would return the ratio of the SMC marginal likelihood
+# estimate and this internal proposal density.
+# we should consider removing this from the interface...
+Gen.project(trace::PFPseudoMarginalTrace, ::EmptySelection) = 0.0 # TODO
 
 function reuse_particle_system(gen_fn::PFPseudoMarginalGF, prev_args, args, argdiffs)
     return gen_fn.reuse_particle_system(prev_args, args, argdiffs)
@@ -90,16 +92,14 @@ end
 
 function fresh_pf(
         gen_fn::PFPseudoMarginalGF,
-        all_args::AbstractVector{Tuple}, all_data::AbstractVector{ChoiceMap},
-        argdiffs::Tuple)
+        all_args::AbstractVector{Tuple},
+        all_argdiffs::AbstractVector{Tuple},
+        all_data::AbstractVector{ChoiceMap})
     @assert length(all_args) == length(all_data)
+    @assert length(all_argdiffs) == (length(all_args)-1)
     pf_state = initialize_particle_filter(
         gen_fn.model, all_args[1], all_data[1], gen_fn.num_particles)
-    #@assert get_T(all_args[1]) == 1
-    #T = 2
-    #prev_args = all_args[
-    for (args, data) in zip(all_args[2:end], all_data[2:end])
-        #@assert T == get_T(gen_fn, args)
+    for (args, argdiffs, data) in zip(all_args[2:end], all_argdiffs, all_data[2:end])
         @assert maybe_resample!(pf_state; ess_threshold=Inf) # always resample
         particle_filter_step!(pf_state, args, argdiffs, data)
     end
@@ -123,9 +123,10 @@ function Gen.generate(gen_fn::PFPseudoMarginalGF{T,U}, args::Tuple, constraints:
     all_args = FunctionalCollections.push(all_args, args)
     all_data = FunctionalCollections.PersistentVector{ChoiceMap}()
     all_data = FunctionalCollections.push(all_data, constraints)
-    (pf_state, distinguished_particle) = fresh_pf(gen_fn, all_args, all_data, ()) # argdiffs is unused
+    (pf_state, distinguished_particle) = fresh_pf(gen_fn, all_args, Tuple[], all_data) # all_argdiffs is unused
+    all_argdiffs = FunctionalCollections.PersistentVector{Tuple}()
     trace = PFPseudoMarginalTrace{T,U}(
-        gen_fn, pf_state, all_args, all_data, distinguished_particle, get_T(gen_fn, args))
+        gen_fn, pf_state, all_args, all_argdiffs, all_data, distinguished_particle, get_T(gen_fn, args))
     log_weight = log_ml_estimate(pf_state)
     return (trace, log_weight)
 end
@@ -151,8 +152,9 @@ function Gen.update(
                 (pf_state, log_increment, distinguished_particle) = extend_pf(
                     trace.pf_state, args, argdiffs, constraints, prev_T, new_T)
                 all_args = FunctionalCollections.push(trace.all_args, args)
+                all_argdiffs = FunctionalCollections.push(trace.all_argdiffs, argdiffs)
                 all_data = FunctionalCollections.push(trace.all_data, constraints)
-                trace = PFPseudoMarginalTrace(trace.gen_fn, pf_state, all_args, all_data, distinguished_particle, new_T)
+                trace = PFPseudoMarginalTrace(trace.gen_fn, pf_state, all_args, all_argdiffs, all_data, distinguished_particle, new_T)
                 weight = log_increment
                 retdiff = NoChange()
                 discard = EmptyChoiceMap()
@@ -184,11 +186,12 @@ function Gen.update(
             # the observed data is not modified (no new constraints)
             # use case: MCMC moves that affect the args, but that don't extend the number of steps
             # (e.g. MCMC rejuvenation moves within outer SMC)
+            # TODO where do we get the argdiffs? let's reuse them from the other equivalence class... (TODO hackk..)
             prev_ml_estimate = log_ml_estimate(trace.pf_state)
             all_args = FunctionalCollections.PersistentVector{Tuple}([get_step_args(gen_fn, args, T) for T in 1:new_T])
             all_data = trace.all_data
-            (pf_state, distinguished_particle) = fresh_pf(gen_fn, all_args, all_data, ())
-            trace = PFPseudoMarginalTrace(gen_fn, pf_state, all_args, all_data, distinguished_particle, new_T)
+            (pf_state, distinguished_particle) = fresh_pf(gen_fn, all_args, trace.all_argdiffs, all_data)
+            trace = PFPseudoMarginalTrace(gen_fn, pf_state, all_args, trace.all_argdiffs, all_data, distinguished_particle, new_T)
             weight = log_ml_estimate(pf_state) - prev_ml_estimate
             retdiff = NoChange()
             discard = EmptyChoiceMap()
