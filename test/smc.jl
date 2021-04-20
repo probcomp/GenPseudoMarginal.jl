@@ -55,38 +55,71 @@ import Random
         end
     end
 
-    gen_fn = PFPseudoMarginalGF(
-        model = hidden_markov_model,
-        data_addrs = T -> [(:y, T)],
-        get_step_args = (args, T) -> (args[1], T,),
-        num_particles = 100000,
-        get_T = (args) -> args[2],
-        reuse_particle_system = (args1, args2, argdiffs) -> (argdiffs[1] == NoChange())
-    )
+    @gen function optimal_local_proposal_init(model, args, data)
+        @assert has_value(data, (:y, 1))
+        log_probs = Vector{Float64}(undef, num_hidden_states)
+        for i in 1:num_hidden_states
+            constraints = merge(data, choicemap(((:z, 1), i)))
+            (_, log_probs[i]) = generate(model, args, constraints)
+        end
+        probs = exp.(log_probs .- logsumexp(log_probs))
+        probs = probs / sum(probs)
+        {(:z, 1)} ~ categorical(probs)
+    end
+
+    @gen function optimal_local_proposal(trace, data)
+        T = get_args(trace)[2]
+        @assert has_value(data, (:y, T+1))
+        log_probs = Vector{Float64}(undef, num_hidden_states)
+        for i in 1:num_hidden_states
+            constraints = merge(data, choicemap(((:z, T+1), i)))
+            (_, log_probs[i], _, _) = update(
+                trace, (get_args(trace)[1], T+1,), (NoChange(), UnknownChange(),),
+                constraints)
+        end
+        probs = exp.(log_probs .- logsumexp(log_probs))
+        probs = probs / sum(probs)
+        {(:z, T+1)} ~ categorical(probs)
+    end
+
+    for get_proposal in [
+            (T) -> (T == 1 ? optimal_local_proposal_init : optimal_local_proposal),
+            (T) -> nothing]
+
+        gen_fn = PFPseudoMarginalGF(
+            model = hidden_markov_model,
+            data_addrs = T -> [(:y, T)],
+            get_step_args = (args, T) -> (args[1], T,),
+            num_particles = 100000,
+            get_T = (args) -> args[2],
+            reuse_particle_system = (args1, args2, argdiffs) -> (argdiffs[1] == NoChange()),
+            get_proposal = get_proposal)
+        
+        ys = [1, 2]
+        log_marginal_likelihood_1 = log(hmm_forward_alg(init_state_prior, emission_dists, transition_dists, ys[1:1]))
+        log_marginal_likelihood_2 = log(hmm_forward_alg(init_state_prior, emission_dists, transition_dists, ys[1:2]))
     
-    ys = [1, 2]
-    log_marginal_likelihood_1 = log(hmm_forward_alg(init_state_prior, emission_dists, transition_dists, ys[1:1]))
-    log_marginal_likelihood_2 = log(hmm_forward_alg(init_state_prior, emission_dists, transition_dists, ys[1:2]))
+        # generate with one time step
+        @time trace, log_weight = generate(gen_fn, (init_state_prior, 1,), choicemap(((:y, 1), ys[1])))
+        @test isapprox(get_score(trace), log_marginal_likelihood_1, rtol=1e-2)
+        @test isapprox(log_weight, log_marginal_likelihood_1, rtol=1e-2)
+        @test get_choices(trace) == choicemap(((:y, 1), ys[1]))
+    
+        # extending by one time step
+        @time new_trace, log_weight, retdiff, discard = update(
+            trace, (init_state_prior, 2,), (NoChange(), UnknownChange(),), choicemap(((:y, 2), ys[2])))
+        @test isapprox(log_weight, log_marginal_likelihood_2 - log_marginal_likelihood_1, rtol=1e-2)
+        @test isapprox(get_score(new_trace), log_marginal_likelihood_2, rtol=1e-2)
+        @test get_choices(new_trace) == choicemap(((:y, 1), ys[1]), ((:y, 2), ys[2]))
+    
+        # re-executing the two-time-step particle system
+        alternate_init_state_prior = [0.3, 0.3, 0.4]
+        alternate_log_marginal_likelihood_2 = log(hmm_forward_alg(alternate_init_state_prior, emission_dists, transition_dists, ys[1:2]))
+        @time new_trace, log_weight, retdiff, discard = update(
+            new_trace, (alternate_init_state_prior, 2,), (UnknownChange(), NoChange(),), choicemap())
+        @test isapprox(log_weight, alternate_log_marginal_likelihood_2 - log_marginal_likelihood_2, rtol=1e-1)
+        @test isapprox(get_score(new_trace), alternate_log_marginal_likelihood_2, rtol=1e-2)
+        @test get_choices(new_trace) == choicemap(((:y, 1), ys[1]), ((:y, 2), ys[2]))
 
-    # generate with one time step
-    @time trace, log_weight = generate(gen_fn, (init_state_prior, 1,), choicemap(((:y, 1), ys[1])))
-    @test isapprox(get_score(trace), log_marginal_likelihood_1, rtol=1e-2)
-    @test isapprox(log_weight, log_marginal_likelihood_1, rtol=1e-2)
-    @test get_choices(trace) == choicemap(((:y, 1), ys[1]))
-
-    # extending by one time step
-    @time new_trace, log_weight, retdiff, discard = update(
-        trace, (init_state_prior, 2,), (NoChange(), UnknownChange(),), choicemap(((:y, 2), ys[2])))
-    @test isapprox(log_weight, log_marginal_likelihood_2 - log_marginal_likelihood_1, rtol=1e-2)
-    @test isapprox(get_score(new_trace), log_marginal_likelihood_2, rtol=1e-2)
-    @test get_choices(new_trace) == choicemap(((:y, 1), ys[1]), ((:y, 2), ys[2]))
-
-    # re-executing the two-time-step particle system
-    alternate_init_state_prior = [0.3, 0.3, 0.4]
-    alternate_log_marginal_likelihood_2 = log(hmm_forward_alg(alternate_init_state_prior, emission_dists, transition_dists, ys[1:2]))
-    @time new_trace, log_weight, retdiff, discard = update(
-        new_trace, (alternate_init_state_prior, 2,), (UnknownChange(), NoChange(),), choicemap())
-    @test isapprox(log_weight, alternate_log_marginal_likelihood_2 - log_marginal_likelihood_2, rtol=1e-2)
-    @test isapprox(get_score(new_trace), alternate_log_marginal_likelihood_2, rtol=1e-2)
-    @test get_choices(new_trace) == choicemap(((:y, 1), ys[1]), ((:y, 2), ys[2]))
+    end
 end

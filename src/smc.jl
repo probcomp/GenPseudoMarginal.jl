@@ -17,8 +17,7 @@ export encapsulate
     get_step_args::Function 
 
     # a function from an integer >= 1 (step) to a generative function
-    # TODO add support for this; currently we are just using fwd sim.
-    get_proposal::Union{Function,Nothing}=nothing
+    get_proposal::Function = (T -> nothing)
 
     num_particles::Int
 
@@ -72,9 +71,39 @@ function sample_distinguished_particle(pf_state::Gen.ParticleFilterState)
     return categorical(weights / sum(weights))
 end
 
+function pseudomarginal_particle_filter_step!(
+        pf_state, args, argdiffs, constraints,
+        ::Nothing)
+    return particle_filter_step!(pf_state, args, argdiffs, constraints)
+end
+
+function pseudomarginal_particle_filter_step!(
+        pf_state, args, argdiffs, constraints,
+        proposal::GenerativeFunction)
+    return particle_filter_step!(
+        pf_state, args, argdiffs, constraints,
+        proposal, (constraints,))
+end
+
+function pseudomarginal_initialize_particle_filter(
+        model, args, data, num_particles,
+        ::Nothing)
+    return initialize_particle_filter(
+        model, args, data, num_particles)
+end
+
+function pseudomarginal_initialize_particle_filter(
+        model, args, data, num_particles,
+        proposal::GenerativeFunction)
+    return initialize_particle_filter(
+        model, args, data,
+        proposal, (model, args, data,), # NOTE the proposal accepts arguments to the model and data
+        num_particles)
+end
+
 function extend_pf(
         pf_state::Gen.ParticleFilterState, args::Tuple, argdiffs::Tuple, constraints::ChoiceMap,
-        prev_T::Int, new_T::Int)
+        prev_T::Int, new_T::Int, get_proposal::Function)
     # TODO avoid copying with a better data structure
     pf_state = Gen.ParticleFilterState(
         copy(pf_state.traces),
@@ -84,7 +113,8 @@ function extend_pf(
         copy(pf_state.parents))
     @assert new_T == prev_T + 1
     @assert maybe_resample!(pf_state; ess_threshold=Inf) # always resample
-    log_incremental_weights, = particle_filter_step!(pf_state, args, argdiffs, constraints)
+    log_incremental_weights, = pseudomarginal_particle_filter_step!(
+        pf_state, args, argdiffs, constraints, get_proposal(new_T))
     log_increment = logsumexp(log_incremental_weights) - log(length(log_incremental_weights))
     distinguished_particle = sample_distinguished_particle(pf_state)
     return (pf_state, log_increment, distinguished_particle)
@@ -94,14 +124,16 @@ function fresh_pf(
         gen_fn::PFPseudoMarginalGF,
         all_args::AbstractVector{Tuple},
         all_argdiffs::AbstractVector{Tuple},
-        all_data::AbstractVector{ChoiceMap})
+        all_data::AbstractVector{ChoiceMap},
+        get_proposal::Function)
     @assert length(all_args) == length(all_data)
     @assert length(all_argdiffs) == (length(all_args)-1)
-    pf_state = initialize_particle_filter(
-        gen_fn.model, all_args[1], all_data[1], gen_fn.num_particles)
-    for (args, argdiffs, data) in zip(all_args[2:end], all_argdiffs, all_data[2:end])
+    pf_state = pseudomarginal_initialize_particle_filter(
+        gen_fn.model, all_args[1], all_data[1], gen_fn.num_particles,
+        get_proposal(1))
+    for (T, args, argdiffs, data) in zip(2:length(all_args), all_args[2:end], all_argdiffs, all_data[2:end])
         @assert maybe_resample!(pf_state; ess_threshold=Inf) # always resample
-        particle_filter_step!(pf_state, args, argdiffs, data)
+        pseudomarginal_particle_filter_step!(pf_state, args, argdiffs, data, get_proposal(T))
     end
     distinguished_particle = sample_distinguished_particle(pf_state)
     return (pf_state, distinguished_particle)
@@ -123,7 +155,8 @@ function Gen.generate(gen_fn::PFPseudoMarginalGF{T,U}, args::Tuple, constraints:
     all_args = FunctionalCollections.push(all_args, args)
     all_data = FunctionalCollections.PersistentVector{ChoiceMap}()
     all_data = FunctionalCollections.push(all_data, constraints)
-    (pf_state, distinguished_particle) = fresh_pf(gen_fn, all_args, Tuple[], all_data) # all_argdiffs is unused
+    (pf_state, distinguished_particle) = fresh_pf(
+        gen_fn, all_args, Tuple[], all_data, gen_fn.get_proposal) # all_argdiffs is unused
     all_argdiffs = FunctionalCollections.PersistentVector{Tuple}()
     trace = PFPseudoMarginalTrace{T,U}(
         gen_fn, pf_state, all_args, all_argdiffs, all_data, distinguished_particle, get_T(gen_fn, args))
@@ -150,7 +183,8 @@ function Gen.update(
                 # reuse_particle_system(prev_args, args) == true,
                 # and there are no constraints other than for the new time step's observations
                 (pf_state, log_increment, distinguished_particle) = extend_pf(
-                    trace.pf_state, args, argdiffs, constraints, prev_T, new_T)
+                    trace.pf_state, args, argdiffs, constraints, prev_T, new_T,
+                    gen_fn.get_proposal)
                 all_args = FunctionalCollections.push(trace.all_args, args)
                 all_argdiffs = FunctionalCollections.push(trace.all_argdiffs, argdiffs)
                 all_data = FunctionalCollections.push(trace.all_data, constraints)
@@ -190,7 +224,8 @@ function Gen.update(
             prev_ml_estimate = log_ml_estimate(trace.pf_state)
             all_args = FunctionalCollections.PersistentVector{Tuple}([get_step_args(gen_fn, args, T) for T in 1:new_T])
             all_data = trace.all_data
-            (pf_state, distinguished_particle) = fresh_pf(gen_fn, all_args, trace.all_argdiffs, all_data)
+            (pf_state, distinguished_particle) = fresh_pf(
+                gen_fn, all_args, trace.all_argdiffs, all_data, gen_fn.get_proposal)
             trace = PFPseudoMarginalTrace(gen_fn, pf_state, all_args, trace.all_argdiffs, all_data, distinguished_particle, new_T)
             weight = log_ml_estimate(pf_state) - prev_ml_estimate
             retdiff = NoChange()
