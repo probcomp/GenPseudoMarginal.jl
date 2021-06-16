@@ -27,9 +27,6 @@ export encapsulate
     reuse_particle_system::Function # a function of two argument tuples
 end
 
-# we can implement trace getters that return aux data..
-# we could sample a distinguished particle and expose the steps variables that way..
-
 struct PFPseudoMarginalTrace{T,U} <: Gen.Trace
     gen_fn::PFPseudoMarginalGF{T,U}
     pf_state::Gen.ParticleFilterState{U}
@@ -43,7 +40,8 @@ end
 Gen.get_gen_fn(trace::PFPseudoMarginalTrace) = trace.gen_fn
 Gen.get_args(trace::PFPseudoMarginalTrace) = trace.all_args[end]
 Gen.get_score(trace::PFPseudoMarginalTrace) = log_ml_estimate(trace.pf_state)
-Gen.get_retval(trace::PFPseudoMarginalTrace) = nothing
+Gen.get_retval(trace::PFPseudoMarginalTrace) = get_retval(trace.pf_state.traces[trace.distinguished_particle])
+Base.getindex(trace::PFPseudoMarginalTrace, addr) = trace.pf_state.traces[trace.distinguished_particle][addr]
 Gen.get_choices(trace::PFPseudoMarginalTrace) = merge(trace.all_data...)
 Gen.project(trace::PFPseudoMarginalTrace, ::Selection) = error("not implemented")
 Gen.project(trace::PFPseudoMarginalTrace, ::AllSelection) = log_ml_estimate(trace.pf_state)
@@ -202,7 +200,7 @@ function Gen.update(
             # 2. record the new marginal likelihood estimate as the score
             # 3. for the weight, return the sum of the log averages of the incremental weights for each removed time step
             # (NOTE this sub-case is not a priority to implement)
-            error("support for retracting the particle system has not been implemented")
+            error("support for contracting the particle system has not been implemented")
         else
             @assert new_T == prev_T
             # handled case
