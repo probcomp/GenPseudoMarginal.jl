@@ -88,8 +88,10 @@ function reverse_ais(
     # get pi_1(z_0) / q(z_0) -- the weight that would be returned by the initial 'generate' call
     # select the addresses that would be constrained by the call to generate inside to AIS.simulate()
     @assert get_args(trace) == args_seq[1]
-    score_from_project = project(trace, ComplementSelection(output_addrs))
+    #score_from_project = project(trace, ComplementSelection(output_addrs))
+    score_from_project = project(trace, output_addrs)
     ais_score -= score_from_project
+    println("changed!")
     lml_est += score_from_project
     push!(weights, score_from_project)
     if isnan(score_from_project)

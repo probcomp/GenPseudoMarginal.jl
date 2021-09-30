@@ -1,115 +1,134 @@
 using Gen
 
-########################################################
-# Selection-based SIR (sampling importance resampling) #
-########################################################
+#########################
+# resampling combinator #
+#########################
 
-function selection_sir(trace::Trace, selection::Selection, num_particles::Int)
-    weights = Vector{Float64}(undef, num_particles)
-    args = get_args(trace)
-    argdiffs = map((_) -> NoChange(), args)
-    traces = Vector{Trace}(undef, num_particles)
-    offset = project(trace, ComplementSelection(selection))
-    Threads.@threads for i=1:num_particles
-        (traces[i], weight, _) = regenerate(trace, args, argdiffs, selection)
-        weights[i] = weight + offset
-    end
-    idx = categorical(exp.(weights .- logsumexp(weights)))
-    lml_est = logsumexp(weights) - log(num_particles)
-    (lml_est, traces[idx], weights)
+# take as input a generative function (the proposal) and arguments to that
+# generative function and a procedure for computing the unnormalized weight
+
+# arguments to the generative function:
+# 1 the arguments to the model
+# 2 the observations on the model
+# 3 the arguments to the proposal
+# 4 the number of particles (K)
+
+# the proposal should not produce entire traces of the model
+# it should just produce proposed traces...
+
+# the generative function the same return value as the proposal
+
+struct ResampleGF{T,U} <: GenerativeFunction{T,Trace}
+    model::GenerativeFunction
+    proposal::GenerativeFunction{T,U}
 end
 
-function conditional_selection_sir(trace::Trace, selection::Selection, num_particles::Int)
-    weights = Vector{Float64}(undef, num_particles)
-    args = get_args(trace)
-    argdiffs = map((_) -> NoChange(), args)
-    traces = Vector{Trace}(undef, num_particles)
-    traces[1] = trace
-    input_trace_weight = project(trace, ComplementSelection(selection))
-    weights[1] = input_trace_weight
-    Threads.@threads for i=2:num_particles
-        (traces[i], weight, _) = regenerate(trace, args, argdiffs, selection)
-        weights[i] = weight + input_trace_weight
-    end
-    idx = categorical(exp.(weights .- logsumexp(weights)))
-    lml_est = logsumexp(weights) - log(num_particles)
-    (lml_est, traces[idx], weights)
-end
+# construct using default constructor (ResampleGF(my_gen_fn))
 
-export selection_sir, conditional_selection_sir
+struct ResampleGFTrace{T,U} <: Gen.Trace
 
-######################################################
-# Selection-based SIR generative function combinator #
-######################################################
+    gen_fn::ResampleGF{T,U}
 
-struct SelectionSIRTrace <: Gen.Trace
-    gen_fn::GenerativeFunction
-    args::Tuple
+    # arguments to the model generaative function
+    model_args::Tuple
+
+    # arguments to the proposal generative function
+    proposal_args::Tuple
+
+    # when combined with choices made by proposal,
+    # uniquely determine a model trace
+    observations::ChoiceMap 
+
+    # number of particles
+    num_particles::Int
+
+    # the chosen trace of proposal generative function
+    chosen_particle::U
+
+    # score
     score::Float64
-    choices::ChoiceMap
-    weights::Vector{Float64}
 end
 
-Gen.get_gen_fn(trace::SelectionSIRTrace) = trace.gen_fn
-Gen.get_args(trace::SelectionSIRTrace) = trace.args
-Gen.get_retval(trace::SelectionSIRTrace) = trace.weights
-Gen.get_choices(trace::SelectionSIRTrace) = trace.choices
-Gen.get_score(trace::SelectionSIRTrace) = trace.score
+Gen.get_gen_fn(trace::ResampleGFTrace) = trace.gen_fn
 
-struct SelectionSIRGF <: GenerativeFunction{Vector{Float64},SelectionSIRTrace} end
-const selection_sir_gf = SelectionSIRGF()
-
-function Gen.simulate(gen_fn::SelectionSIRGF, args::Tuple)
-    (trace::Trace, selection::Selection, num_particles::Int) = args
-    (lml_est, new_trace, weights) = selection_sir(trace, selection, num_particles)
-    score = get_score(new_trace) - lml_est
-    output = get_selected(get_choices(new_trace), selection)
-    SelectionSIRTrace(gen_fn, args, score, output, weights)
+function Gen.get_args(trace::ResampleGFTrace)
+    return (trace.model_args, trace.observations, trace.proposal_args, trace.num_particles)
 end
 
-function Gen.generate(gen_fn::SelectionSIRGF, args::Tuple, constraints::ChoiceMap)
-    (trace::Trace, selection::Selection, num_particles::Int) = args
-    model_args = get_args(trace)
-    argdiffs = map((_) -> NoChange(), model_args)
-    new_trace, = update(trace, model_args, argdiffs, constraints)
-    (lml_est, _, weights) = conditional_selection_sir(new_trace, selection, num_particles)
-    score = get_score(new_trace) - lml_est
-    trace = SelectionSIRTrace(gen_fn, args, score, constraints, weights)
-    (trace, score)
+Gen.get_score(trace::ResampleGFTrace) = trace.score
+
+Gen.get_retval(trace::ResampleGFTrace) = get_retval(trace.chosen_particle)
+
+Base.getindex(trace::ResampleGFTrace, addr) = trace.chosen_particle[addr]
+
+Gen.get_choices(trace::ResampleGFTrace) = get_choices(trace.chosen_particle)
+
+Gen.project(trace::ResampleGFTrace, ::EmptySelection) = 0.0
+
+Gen.project(trace::ResampleGFTrace, ::AllSelection) = trace.score
+
+Gen.project(trace::ResampleGFTrace, ::Selection) = error("not implemented")
+
+function Gen.simulate(gen_fn::ResampleGF, args::Tuple)
+    (model_args, observations, proposal_args, num_particles) = args
+
+    proposal_traces = Vector{U}(undef, num_particles)
+    log_weights = Vector{Float64}(undef, num_particles)
+    model_scores = Vector{Float64}(undef, num_particles)
+
+    for i in 1:num_particles
+
+        # sample from proposal
+        proposal_trace = simulate(gen_fn.proposal, proposal_args)
+        proposal_traces[i] = proposal_trace
+        proposed_choices = get_choices(proposal_trace)
+
+        # combine with observations to form a model trace
+        constraints = merge(observations, proposed_choices)
+        (model_trace, model_score) = generate(model, model_args, constraints)
+
+        # let's require generate to be deterministic for now
+        @assert isapprox(model_score, get_score(model_trace)) 
+
+        # record the model joint density (model_score) and importance weight
+        model_scores[i] = model_score
+        log_weights[i] = model_score - get_score(proposal_trace)
+    end
+    
+    # sample particle in proposal to weights
+    log_total_weight = Gen.logsumexp(log_weights)
+    normalized_weights = exp.(log_weights .- log_total_weight)
+    chosen_idx = categogorical(normalized_weights)
+    chosen_particle = proposal_traces[chosen_idx]
+
+    # compute score (our estimate of the marginal density of our choices)
+    log_ml_estimate = log_total_weight - log(num_particles)
+    score = model_scores[chosen_idx] - log_ml_estimate
+
+    return ResampleGFTrace(
+        gen_fn,
+        model_args,
+        proposal_args,
+        observations,
+        num_particles,
+        chosen_particle,
+        score)
 end
 
-export selection_sir_gf
-
-#####################
-# MH move using SIR #
-#####################
-
-# Q: How is this different from doing rejection sampling on these choices?
-# It is expensive like rejection sampling, but doesn't require a bound, and has
-# predictable running time, and can still accept even if you don't have an
-# exact sample.
-
-# Q: How is this different than just doing selection MH in a loop?
-# A: It can be parallelized. Also, it can be composed with other proposals in a
-# single MH step.
-
-# Q: How is this different than particle Gibbs?
-# A: It is more compositional (it can be composed with other proposals in an MH
-# step). Also it may be less sticky.
-
-function selection_sir_mh(trace, selection::Selection, num_particles::Int)
-    mh(trace, selection_sir_gf, (selection, num_particles))
+function Gen.generate(gen_fn::ResampleGF, args::Tuple, constraints::ChoiceMap)
+    (model_args, observations, proposal_args, num_particles) = args
 end
 
-export selection_sir_mh
+# returns a generative function that has the same trace structure as the
+# 'proposal' generative function
 
-#################################
-# particle Gibbs move using SIR #
-#################################
+# the number of particles (K) is an argument to the generative function
 
-function sir_pgibbs(trace, selection::Selection, num_particles::Int)
-    (_, new_trace, _) = conditional_selection_sir(trace, selection, num_particles)
-    new_trace
-end
+# simulate() will run simulate() on the proposal K times
+# then it will sample one, then it will return a trace
+# that contains that, with a score..
 
-export sir_pgibbs
+# generate() will only (initially) run given constraints
+# that uniquely determine a trace of the proposal
+
+
